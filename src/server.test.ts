@@ -42,6 +42,12 @@ describe("createServer", () => {
     expect(body).toContain("https://unpkg.com/react@18/umd/react.production.min.js");
   });
 
+  it("includes the ReactDOM CDN script tag", async () => {
+    const res = await fetch(baseUrl);
+    const body = await res.text();
+    expect(body).toContain("https://unpkg.com/react-dom@18/umd/react-dom.production.min.js");
+  });
+
   it("includes the Babel standalone CDN script tag", async () => {
     const res = await fetch(baseUrl);
     const body = await res.text();
