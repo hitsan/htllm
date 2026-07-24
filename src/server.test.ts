@@ -25,9 +25,9 @@ describe("createServer", () => {
     expect(res.status).toBe(200);
   });
 
-  it("returns Content-Type text/html", async () => {
+  it("returns Content-Type text/html with utf-8 charset", async () => {
     const res = await fetch(baseUrl);
-    expect(res.headers.get("content-type")).toBe("text/html");
+    expect(res.headers.get("content-type")).toBe("text/html; charset=utf-8");
   });
 
   it("includes the given JSX content in the response body", async () => {

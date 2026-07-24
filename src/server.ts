@@ -4,6 +4,7 @@ function renderPage(jsx: string): string {
   return `<!doctype html>
 <html>
 <head>
+  <meta charset="utf-8">
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -17,7 +18,7 @@ function renderPage(jsx: string): string {
 
 export function createServer(jsx: string) {
   return createHttpServer((_req, res) => {
-    res.writeHead(200, { "Content-Type": "text/html" });
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     res.end(renderPage(jsx));
   });
 }
