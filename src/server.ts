@@ -1,4 +1,5 @@
 import { createServer as createHttpServer } from "node:http";
+import { runTurn } from "./claude/runTurn.js";
 
 function renderPage(jsx: string): string {
   return `<!doctype html>
@@ -17,8 +18,34 @@ function renderPage(jsx: string): string {
 }
 
 export function createServer(jsx: string) {
-  return createHttpServer((_req, res) => {
+  let currentJsx = jsx;
+  let currentSessionId: string | undefined;
+
+  return createHttpServer((req, res) => {
+    if (req.method === "POST" && req.url === "/api/turn") {
+      let body = "";
+      req.on("data", (chunk) => {
+        body += chunk;
+      });
+      req.on("end", async () => {
+        const { prompt } = JSON.parse(body);
+        const turn = await runTurn(prompt, { resumeSessionId: currentSessionId });
+        currentJsx = turn.result;
+        currentSessionId = turn.sessionId;
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            jsx: turn.result,
+            sessionId: turn.sessionId,
+            stopReason: turn.stopReason,
+          }),
+        );
+      });
+      return;
+    }
+
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-    res.end(renderPage(jsx));
+    res.end(renderPage(currentJsx));
   });
 }
