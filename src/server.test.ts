@@ -1,21 +1,17 @@
 import { describe, it, expect, beforeAll, afterAll, vi, beforeEach, afterEach } from "vitest";
+import { createServer } from "./server.js";
 import type { Server } from "node:http";
-
-const runTurnMock = vi.fn();
-vi.mock("./claude/runTurn.js", () => ({
-  runTurn: (...args: unknown[]) => runTurnMock(...args),
-}));
-
-const { createServer } = await import("./server.js");
+import type { TurnHandler } from "./server.js";
 
 describe("createServer", () => {
   let server: Server;
   let baseUrl: string;
 
   const jsx = "<h1>Hello htllm</h1>";
+  const onTurn = vi.fn<TurnHandler>();
 
   beforeAll(async () => {
-    server = createServer(jsx);
+    server = createServer(jsx, onTurn);
     await new Promise<void>((resolve) => server.listen(0, resolve));
     const address = server.address();
     const port = typeof address === "object" && address ? address.port : 0;
@@ -82,7 +78,7 @@ describe("createServer", () => {
 
   it("generates different HTML for different content", async () => {
     const otherJsx = "<h1>Different content</h1>";
-    const otherServer = createServer(otherJsx);
+    const otherServer = createServer(otherJsx, onTurn);
     await new Promise<void>((resolve) => otherServer.listen(0, resolve));
     const address = otherServer.address();
     const port = typeof address === "object" && address ? address.port : 0;
@@ -99,10 +95,11 @@ describe("createServer", () => {
 describe("POST /api/turn", () => {
   let server: Server;
   let baseUrl: string;
+  let onTurn: ReturnType<typeof vi.fn<TurnHandler>>;
 
   beforeEach(async () => {
-    runTurnMock.mockReset();
-    server = createServer("<h1>initial</h1>");
+    onTurn = vi.fn<TurnHandler>();
+    server = createServer("<h1>initial</h1>", onTurn);
     await new Promise<void>((resolve) => server.listen(0, resolve));
     const address = server.address();
     const port = typeof address === "object" && address ? address.port : 0;
@@ -114,11 +111,7 @@ describe("POST /api/turn", () => {
   });
 
   it("returns status 200", async () => {
-    runTurnMock.mockResolvedValue({
-      result: "<h1>updated</h1>",
-      sessionId: "session-1",
-      stopReason: "end_turn",
-    });
+    onTurn.mockResolvedValue({ jsx: "<h1>updated</h1>" });
 
     const res = await fetch(`${baseUrl}/api/turn`, {
       method: "POST",
@@ -129,12 +122,20 @@ describe("POST /api/turn", () => {
     expect(res.status).toBe(200);
   });
 
-  it("returns the runTurn result as jsx/sessionId/stopReason JSON", async () => {
-    runTurnMock.mockResolvedValue({
-      result: "<h1>updated</h1>",
-      sessionId: "session-1",
-      stopReason: "end_turn",
+  it("calls onTurn with the prompt from the request body", async () => {
+    onTurn.mockResolvedValue({ jsx: "<h1>updated</h1>" });
+
+    await fetch(`${baseUrl}/api/turn`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: "hello" }),
     });
+
+    expect(onTurn).toHaveBeenCalledWith("hello");
+  });
+
+  it("returns onTurn's jsx as JSON", async () => {
+    onTurn.mockResolvedValue({ jsx: "<h1>updated</h1>" });
 
     const res = await fetch(`${baseUrl}/api/turn`, {
       method: "POST",
@@ -143,63 +144,11 @@ describe("POST /api/turn", () => {
     });
     const body = await res.json();
 
-    expect(body).toEqual({
-      jsx: "<h1>updated</h1>",
-      sessionId: "session-1",
-      stopReason: "end_turn",
-    });
-  });
-
-  it("calls runTurn with the prompt from the request body", async () => {
-    runTurnMock.mockResolvedValue({
-      result: "<h1>updated</h1>",
-      sessionId: "session-1",
-      stopReason: "end_turn",
-    });
-
-    await fetch(`${baseUrl}/api/turn`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: "hello" }),
-    });
-
-    expect(runTurnMock).toHaveBeenCalledWith("hello", expect.anything());
-  });
-
-  it("passes the previous sessionId as resumeSessionId on the second call", async () => {
-    runTurnMock.mockResolvedValueOnce({
-      result: "<h1>first</h1>",
-      sessionId: "session-1",
-      stopReason: "end_turn",
-    });
-    runTurnMock.mockResolvedValueOnce({
-      result: "<h1>second</h1>",
-      sessionId: "session-1",
-      stopReason: "end_turn",
-    });
-
-    await fetch(`${baseUrl}/api/turn`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: "first" }),
-    });
-    await fetch(`${baseUrl}/api/turn`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: "second" }),
-    });
-
-    expect(runTurnMock).toHaveBeenNthCalledWith(2, "second", {
-      resumeSessionId: "session-1",
-    });
+    expect(body).toEqual({ jsx: "<h1>updated</h1>" });
   });
 
   it("reflects the updated jsx on subsequent GET /", async () => {
-    runTurnMock.mockResolvedValue({
-      result: "<h1>updated</h1>",
-      sessionId: "session-1",
-      stopReason: "end_turn",
-    });
+    onTurn.mockResolvedValue({ jsx: "<h1>updated</h1>" });
 
     await fetch(`${baseUrl}/api/turn`, {
       method: "POST",

@@ -35,10 +35,30 @@ root.render(${jsxElement});
 `;
 }
 
-function stripCodeFence(text: string): string {
+export async function editDocument(currentText: string, instruction: string): Promise<string> {
+  const prompt = `次のテキストを、以下の指示に従って書き換えてください。
+書き換えた後の全文だけを返してください。説明文やコードブロックの \`\`\` は不要です。
+
+指示:
+${instruction}
+
+現在のテキスト:
+${currentText}`;
+
+  const { result } = await runTurn(prompt);
+  const fenced = extractFencedContent(result);
+  return fenced !== null ? fenced : result.trim();
+}
+
+function extractFencedContent(text: string): string | null {
   const fenceMatch = text.match(/```[^\n]*\n([\s\S]*?)\n```/);
-  if (fenceMatch) {
-    return fenceMatch[1];
+  return fenceMatch ? fenceMatch[1] : null;
+}
+
+function stripCodeFence(text: string): string {
+  const fenced = extractFencedContent(text);
+  if (fenced !== null) {
+    return fenced;
   }
 
   const firstTagIndex = text.indexOf("<");

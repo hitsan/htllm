@@ -5,7 +5,7 @@ vi.mock("./claude/runTurn.js", () => ({
   runTurn: (...args: unknown[]) => runTurnMock(...args),
 }));
 
-const { renderDocument } = await import("./render.js");
+const { renderDocument, editDocument } = await import("./render.js");
 
 describe("renderDocument", () => {
   beforeEach(() => {
@@ -83,5 +83,49 @@ describe("renderDocument", () => {
     const jsx = await renderDocument({ text: "Hello htllm" });
 
     expect(jsx).toContain("root.render(<h1>Hello htllm</h1>);");
+  });
+});
+
+describe("editDocument", () => {
+  beforeEach(() => {
+    runTurnMock.mockReset();
+  });
+
+  it("passes the current text and instruction to runTurn in the prompt", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "Updated text",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    await editDocument("Current text", "もっと短くして");
+
+    const [prompt] = runTurnMock.mock.calls[0];
+    expect(prompt).toContain("Current text");
+    expect(prompt).toContain("もっと短くして");
+  });
+
+  it("returns runTurn's result as the new text", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "Updated text",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const newText = await editDocument("Current text", "もっと短くして");
+
+    expect(newText).toBe("Updated text");
+  });
+
+  it("strips a code fence wrapping the result", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "```\nUpdated text\n```",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const newText = await editDocument("Current text", "もっと短くして");
+
+    expect(newText).toBe("Updated text");
   });
 });
