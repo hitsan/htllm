@@ -66,6 +66,20 @@ describe("createServer", () => {
     expect(body).toContain(`<script type="text/babel">${jsx}</script>`);
   });
 
+  it("centers body content with a flex layout spanning the full viewport height", async () => {
+    const res = await fetch(baseUrl);
+    const body = await res.text();
+    expect(body).toContain("display: flex");
+    expect(body).toContain("justify-content: center");
+    expect(body).toContain("min-height: 100vh");
+  });
+
+  it("sets a body background that adapts to light/dark theme", async () => {
+    const res = await fetch(baseUrl);
+    const body = await res.text();
+    expect(body).toContain("prefers-color-scheme: dark");
+  });
+
   it("generates different HTML for different content", async () => {
     const otherJsx = "<h1>Different content</h1>";
     const otherServer = createServer(otherJsx);
