@@ -1,35 +1,87 @@
-import { describe, it, expect } from "vitest";
-import { renderDocument } from "./render.js";
-import { markdownToHtml } from "./markdown.js";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+const runTurnMock = vi.fn();
+vi.mock("./claude/runTurn.js", () => ({
+  runTurn: (...args: unknown[]) => runTurnMock(...args),
+}));
+
+const { renderDocument } = await import("./render.js");
 
 describe("renderDocument", () => {
-  it("includes the document's text", () => {
-    const jsx = renderDocument({ text: "Hello htllm" });
-
-    expect(jsx).toContain("Hello htllm");
-  });
-});
-
-describe("markdownToHtml", () => {
-  it("converts a '# ' line to an h1", () => {
-    expect(markdownToHtml("# Title")).toBe("<h1>Title</h1>");
+  beforeEach(() => {
+    runTurnMock.mockReset();
   });
 
-  it("converts a '## ' line to an h2", () => {
-    expect(markdownToHtml("## Subtitle")).toBe("<h2>Subtitle</h2>");
+  it("passes the document's text to runTurn in the prompt", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "<h1>Hello htllm</h1>",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    await renderDocument({ text: "Hello htllm" });
+
+    const [prompt] = runTurnMock.mock.calls[0];
+    expect(prompt).toContain("Hello htllm");
   });
 
-  it("converts consecutive '- ' lines into a single ul", () => {
-    expect(markdownToHtml("- one\n- two")).toBe("<ul><li>one</li><li>two</li></ul>");
+  it("returns runTurn's result as-is", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "<h1>Hello htllm</h1>",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const jsx = await renderDocument({ text: "Hello htllm" });
+
+    expect(jsx).toContain("root.render(<h1>Hello htllm</h1>);");
   });
 
-  it("converts a plain line to a paragraph", () => {
-    expect(markdownToHtml("plain text")).toBe("<p>plain text</p>");
+  it("strips a ```jsx code fence wrapping the result", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "```jsx\n<h1>Hello htllm</h1>\n```",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const jsx = await renderDocument({ text: "Hello htllm" });
+
+    expect(jsx).toContain("root.render(<h1>Hello htllm</h1>);");
   });
 
-  it("escapes html tags in the input", () => {
-    expect(markdownToHtml("<script>alert(1)</script>")).toBe(
-      "<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>",
-    );
+  it("strips a plain ``` code fence wrapping the result", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "```\n<h1>Hello htllm</h1>\n```",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const jsx = await renderDocument({ text: "Hello htllm" });
+
+    expect(jsx).toContain("root.render(<h1>Hello htllm</h1>);");
+  });
+
+  it("extracts the code fence even when wrapped in leading/trailing prose", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "以下がJSXです。\n```jsx\n<h1>Hello htllm</h1>\n```\n以上です。",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const jsx = await renderDocument({ text: "Hello htllm" });
+
+    expect(jsx).toContain("root.render(<h1>Hello htllm</h1>);");
+  });
+
+  it("strips leading prose even without a code fence", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "以下がJSX本体です。\n\n<h1>Hello htllm</h1>",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const jsx = await renderDocument({ text: "Hello htllm" });
+
+    expect(jsx).toContain("root.render(<h1>Hello htllm</h1>);");
   });
 });

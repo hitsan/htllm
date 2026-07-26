@@ -14,7 +14,7 @@ if (!doc) {
   doc = { ...initial, _id: insertedId };
 }
 
-const jsx = renderDocument(doc);
+const jsx = await renderDocument(doc);
 
 const port = 3000;
 createServer(jsx).listen(port, () => {
