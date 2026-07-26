@@ -26,5 +26,10 @@ Claudeの計画・成果物をわかりやすく表現して正しく理解す�
 - 動的ページ生成: React。ただしビルドレス（CDN経由のReact + その場トランスパイル）で、生成のたびにbundlerを挟まない。
 - Claude Code連携（後回し、最初のスコープ外）: zellij常駐 + `zellij action write-chars`でメッセージ送信、`~/.claude/projects/<encoded-cwd>/<session-id>.jsonl`をtailして`stop_reason: "end_turn"`でターン完了検知。Agent SDKは不採用。
 
+## ブランチ運用
+- 新機能・設計転換など、まとまった単位の作業は必ず`feat/xxx`ブランチを切ってから始める。「直前の作業をmainにマージした続き」であっても例外にしない。
+- 完了したらmainにfast-forwardマージし、featureブランチは削除する。
+- worktreeは使わない（単一開発者・単一ストリームのため。並列で複数の実験を試したい具体的な場面が出たときだけ再検討する）。
+
 ## 最初のマイルストーン
 静的HTML生成→ローカルサーバー配信→ブラウザ表示、の最小ループを作る。zellij連携・自動検知は含めない。
