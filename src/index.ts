@@ -1,7 +1,7 @@
 import { createServer } from "./server.js";
 import { loadConfig } from "./config.js";
 import { connect } from "./db.js";
-import { renderDocument, editDocument } from "./render.js";
+import { renderDocument, rewriteFragment, replaceFragment, answerQuestion } from "./render.js";
 
 const config = loadConfig(".htllm");
 const db = await connect(config.mongodbUri);
@@ -14,10 +14,11 @@ if (!doc) {
   doc = { ...initial, _id: insertedId };
 }
 
-async function onTurn(prompt: string): Promise<{ jsx: string }> {
+async function onTurn(selectedText: string, instruction: string): Promise<{ jsx: string }> {
   const current = await collection.findOne({});
   const currentText = current?.text ?? "";
-  const newText = await editDocument(currentText, prompt);
+  const newFragment = await rewriteFragment(selectedText, instruction);
+  const newText = replaceFragment(currentText, selectedText, newFragment);
 
   if (current) {
     await collection.updateOne({ _id: current._id }, { $set: { text: newText } });
@@ -29,9 +30,15 @@ async function onTurn(prompt: string): Promise<{ jsx: string }> {
   return { jsx };
 }
 
+async function onAsk(selectedText: string, question: string): Promise<{ answer: string }> {
+  const current = await collection.findOne({});
+  const answer = await answerQuestion(current?.text ?? "", selectedText, question);
+  return { answer };
+}
+
 const jsx = await renderDocument(doc);
 
 const port = 3000;
-createServer(jsx, onTurn).listen(port, () => {
+createServer(jsx, onTurn, onAsk).listen(port, () => {
   console.log(`Listening on http://localhost:${port}`);
 });

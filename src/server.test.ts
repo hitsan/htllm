@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi, beforeEach, afterEach } from "vitest";
 import { createServer } from "./server.js";
 import type { Server } from "node:http";
-import type { TurnHandler } from "./server.js";
+import type { TurnHandler, AskHandler } from "./server.js";
 
 describe("createServer", () => {
   let server: Server;
@@ -9,9 +9,10 @@ describe("createServer", () => {
 
   const jsx = "<h1>Hello htllm</h1>";
   const onTurn = vi.fn<TurnHandler>();
+  const onAsk = vi.fn<AskHandler>();
 
   beforeAll(async () => {
-    server = createServer(jsx, onTurn);
+    server = createServer(jsx, onTurn, onAsk);
     await new Promise<void>((resolve) => server.listen(0, resolve));
     const address = server.address();
     const port = typeof address === "object" && address ? address.port : 0;
@@ -59,7 +60,7 @@ describe("createServer", () => {
   it("embeds the JSX source in a text/babel script tag", async () => {
     const res = await fetch(baseUrl);
     const body = await res.text();
-    expect(body).toContain(`<script type="text/babel">${jsx}</script>`);
+    expect(body).toContain(`<script type="text/babel" id="htllm-jsx-script">${jsx}</script>`);
   });
 
   it("centers body content with a flex layout spanning the full viewport height", async () => {
@@ -78,7 +79,7 @@ describe("createServer", () => {
 
   it("generates different HTML for different content", async () => {
     const otherJsx = "<h1>Different content</h1>";
-    const otherServer = createServer(otherJsx, onTurn);
+    const otherServer = createServer(otherJsx, onTurn, onAsk);
     await new Promise<void>((resolve) => otherServer.listen(0, resolve));
     const address = otherServer.address();
     const port = typeof address === "object" && address ? address.port : 0;
@@ -96,10 +97,12 @@ describe("POST /api/turn", () => {
   let server: Server;
   let baseUrl: string;
   let onTurn: ReturnType<typeof vi.fn<TurnHandler>>;
+  let onAsk: ReturnType<typeof vi.fn<AskHandler>>;
 
   beforeEach(async () => {
     onTurn = vi.fn<TurnHandler>();
-    server = createServer("<h1>initial</h1>", onTurn);
+    onAsk = vi.fn<AskHandler>();
+    server = createServer("<h1>initial</h1>", onTurn, onAsk);
     await new Promise<void>((resolve) => server.listen(0, resolve));
     const address = server.address();
     const port = typeof address === "object" && address ? address.port : 0;
@@ -116,22 +119,22 @@ describe("POST /api/turn", () => {
     const res = await fetch(`${baseUrl}/api/turn`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: "hello" }),
+      body: JSON.stringify({ selectedText: "old", instruction: "hello" }),
     });
 
     expect(res.status).toBe(200);
   });
 
-  it("calls onTurn with the prompt from the request body", async () => {
+  it("calls onTurn with the selectedText and instruction from the request body", async () => {
     onTurn.mockResolvedValue({ jsx: "<h1>updated</h1>" });
 
     await fetch(`${baseUrl}/api/turn`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: "hello" }),
+      body: JSON.stringify({ selectedText: "old", instruction: "hello" }),
     });
 
-    expect(onTurn).toHaveBeenCalledWith("hello");
+    expect(onTurn).toHaveBeenCalledWith("old", "hello");
   });
 
   it("returns onTurn's jsx as JSON", async () => {
@@ -140,7 +143,7 @@ describe("POST /api/turn", () => {
     const res = await fetch(`${baseUrl}/api/turn`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: "hello" }),
+      body: JSON.stringify({ selectedText: "old", instruction: "hello" }),
     });
     const body = await res.json();
 
@@ -153,12 +156,26 @@ describe("POST /api/turn", () => {
     await fetch(`${baseUrl}/api/turn`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: "hello" }),
+      body: JSON.stringify({ selectedText: "old", instruction: "hello" }),
     });
 
     const res = await fetch(baseUrl);
     const body = await res.text();
 
     expect(body).toContain("<h1>updated</h1>");
+  });
+
+  it("returns status 400 with an error message when onTurn rejects", async () => {
+    onTurn.mockRejectedValue(new Error("selected text not found in the current document"));
+
+    const res = await fetch(`${baseUrl}/api/turn`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ selectedText: "old", instruction: "hello" }),
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body).toEqual({ error: "selected text not found in the current document" });
   });
 });
