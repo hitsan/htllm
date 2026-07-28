@@ -6,13 +6,19 @@ export type TextDocument = {
 };
 
 const COMPONENT_CATALOG = `- heading: 節や文書の見出し。フィールド: text
-- prose: 本文の段落。フィールド: text`;
+- prose: 本文の段落。フィールド: text
+- steps: 順序のある手順・工程。フィールド: items（文字列の配列）
+- callout: 注記・警告・ポイントの強調。フィールド: text
+- table: 比較・一覧の表。フィールド: headers（列見出しの配列）, rows（行の配列。各行は文字列の配列）
+- codeblock: コードや設定の断片。フィールド: code
+- card: 見出し＋本文のまとまり。フィールド: title, text
+- diagram: 箱を矢印でつないだ簡単な関係図。フィールド: nodes（箱のラベルの配列。順につながる）`;
 
 const OUTPUT_DISCIPLINE = `作業ディレクトリ・使用可能なツール・セッションの状態など、このタスクに無関係な内容は一切書かないでください。求められた出力だけを返してください。`;
 
 export async function buildTree(inputText: string): Promise<Node[]> {
   const prompt = `次のテキストを、用意された部品だけを使って構造化し、JSON配列として返してください。
-各要素は { "type": 部品名, "text": 中身 } の形にしてください。
+各要素は { "type": 部品名, ...その部品のフィールド } の形にしてください（フィールドは下記のカタログを参照）。
 idは付けないでください（こちら側で採番します）。説明文やコードブロックの \`\`\` は不要で、JSON配列だけを返してください。
 ${OUTPUT_DISCIPLINE}
 
@@ -27,25 +33,27 @@ ${inputText}`;
 
   const { result } = await runTurn(prompt);
   const json = extractFencedContent(result) ?? result.trim();
-  const raw = JSON.parse(json) as Array<{ type: string; text: string }>;
-  return raw.map((n, i) => ({ id: `n${i + 1}`, type: n.type, text: n.text }) as Node);
+  const raw = JSON.parse(json) as Array<{ type: string } & Record<string, unknown>>;
+  return raw.map((n, i) => ({ id: `n${i + 1}`, ...n }) as Node);
 }
 
 export async function updateNode(node: Node, instruction: string): Promise<Node> {
-  const prompt = `次の部品の中身(text)を、以下の指示に従って書き換えてください。
-書き換えた後のtextだけを返してください。説明文やコードブロックの \`\`\` は不要です。
+  const { type, ...fields } = node;
+  const prompt = `次の部品(${type})の中身を、以下の指示に従って書き換えてください。
+書き換えた後のフィールドだけをJSONオブジェクトとして返してください（type, idは含めない）。
+説明文やコードブロックの \`\`\` は不要です。
 ${OUTPUT_DISCIPLINE}
 
 指示:
 ${instruction}
 
-現在のtext:
-${node.text}`;
+現在の中身:
+${JSON.stringify(fields)}`;
 
   const { result } = await runTurn(prompt);
-  const fenced = extractFencedContent(result);
-  const text = fenced !== null ? fenced : result.trim();
-  return { ...node, text };
+  const json = extractFencedContent(result) ?? result.trim();
+  const newFields = JSON.parse(json) as Record<string, unknown>;
+  return { ...node, ...newFields } as Node;
 }
 
 const DESIGN_PRINCIPLES = `- 自己完結: 外部CDN・Webフォント・外部画像への参照は使わない。すべてインラインCSSで完結させる

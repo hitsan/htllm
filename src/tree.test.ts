@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderNode, renderTree, replaceNode, type Node } from "./tree.js";
+import { renderNode, renderTree, replaceNode, nodeToText, type Node } from "./tree.js";
 
 describe("renderNode", () => {
   it("proseノードをdata-node-id付きの段落JSXにする", () => {
@@ -19,6 +19,73 @@ describe("renderNode", () => {
 
     expect(jsx).toBe('<p data-node-id="n2">{"</p><script>\\"{}"}</p>');
   });
+
+  it("stepsノードを順序リストのJSXにする", () => {
+    const jsx = renderNode({ id: "s1", type: "steps", items: ["準備する", "実行する"] });
+
+    expect(jsx).toBe(
+      '<ol data-node-id="s1"><li>{"準備する"}</li><li>{"実行する"}</li></ol>',
+    );
+  });
+
+  it("calloutノードを強調ボックスのJSXにする", () => {
+    const jsx = renderNode({ id: "c1", type: "callout", text: "注意してください" });
+
+    expect(jsx).toBe(
+      '<div data-node-id="c1" className="htllm-callout">{"注意してください"}</div>',
+    );
+  });
+
+  it("tableノードをheadersとrowsを持つtableのJSXにする", () => {
+    const jsx = renderNode({
+      id: "t1",
+      type: "table",
+      headers: ["名前", "値"],
+      rows: [["A", "1"], ["B", "2"]],
+    });
+
+    expect(jsx).toBe(
+      '<table data-node-id="t1">' +
+        '<thead><tr><th>{"名前"}</th><th>{"値"}</th></tr></thead>' +
+        '<tbody>' +
+        '<tr><td>{"A"}</td><td>{"1"}</td></tr>' +
+        '<tr><td>{"B"}</td><td>{"2"}</td></tr>' +
+        '</tbody>' +
+        '</table>',
+    );
+  });
+
+  it("codeblockノードをpre/codeのJSXにする", () => {
+    const jsx = renderNode({ id: "cb1", type: "codeblock", code: "const x = 1;" });
+
+    expect(jsx).toBe(
+      '<pre data-node-id="cb1"><code>{"const x = 1;"}</code></pre>',
+    );
+  });
+
+  it("cardノードをtitleとtextを持つJSXにする", () => {
+    const jsx = renderNode({ id: "cd1", type: "card", title: "見出し", text: "本文" });
+
+    expect(jsx).toBe(
+      '<div data-node-id="cd1" className="htllm-card">' +
+        '<h3>{"見出し"}</h3><p>{"本文"}</p>' +
+        '</div>',
+    );
+  });
+
+  it("diagramノードを箱と矢印のJSXにする", () => {
+    const jsx = renderNode({ id: "d1", type: "diagram", nodes: ["入力", "変換", "出力"] });
+
+    expect(jsx).toBe(
+      '<div data-node-id="d1" className="htllm-diagram">' +
+        '<span className="htllm-diagram-box">{"入力"}</span>' +
+        '<span className="htllm-diagram-arrow">→</span>' +
+        '<span className="htllm-diagram-box">{"変換"}</span>' +
+        '<span className="htllm-diagram-arrow">→</span>' +
+        '<span className="htllm-diagram-box">{"出力"}</span>' +
+        '</div>',
+    );
+  });
 });
 
 describe("renderTree", () => {
@@ -34,6 +101,49 @@ describe("renderTree", () => {
         '<p data-node-id="p1">{"本文"}</p>' +
         '</div>',
     );
+  });
+});
+
+describe("nodeToText", () => {
+  it("prose/heading/calloutはtextをそのまま返す", () => {
+    expect(nodeToText({ id: "n1", type: "prose", text: "本文" })).toBe("本文");
+    expect(nodeToText({ id: "n2", type: "heading", text: "見出し" })).toBe("見出し");
+    expect(nodeToText({ id: "n3", type: "callout", text: "注意" })).toBe("注意");
+  });
+
+  it("stepsはitemsを改行区切りで返す", () => {
+    const text = nodeToText({ id: "s1", type: "steps", items: ["準備する", "実行する"] });
+
+    expect(text).toBe("準備する\n実行する");
+  });
+
+  it("tableはheadersとrowsをタブ区切り・改行区切りで返す", () => {
+    const text = nodeToText({
+      id: "t1",
+      type: "table",
+      headers: ["名前", "値"],
+      rows: [["A", "1"]],
+    });
+
+    expect(text).toBe("名前\t値\nA\t1");
+  });
+
+  it("codeblockはcodeをそのまま返す", () => {
+    const text = nodeToText({ id: "cb1", type: "codeblock", code: "const x = 1;" });
+
+    expect(text).toBe("const x = 1;");
+  });
+
+  it("cardはtitleとtextを改行区切りで返す", () => {
+    const text = nodeToText({ id: "cd1", type: "card", title: "見出し", text: "本文" });
+
+    expect(text).toBe("見出し\n本文");
+  });
+
+  it("diagramはnodesを矢印区切りで返す", () => {
+    const text = nodeToText({ id: "d1", type: "diagram", nodes: ["入力", "出力"] });
+
+    expect(text).toBe("入力 → 出力");
   });
 });
 

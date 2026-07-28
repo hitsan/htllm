@@ -1,7 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { createServer } from "./server.js";
 import { buildTree, updateNode, answerQuestion } from "./render.js";
-import { renderTree, replaceNode, type Node } from "./tree.js";
+import { renderTree, replaceNode, nodeToText, type Node } from "./tree.js";
 
 const DOC_PATH = "doc.json";
 
@@ -44,7 +44,7 @@ async function onTurn(nodeId: string, instruction: string): Promise<{ jsx: strin
 }
 
 async function onAsk(selectedText: string, question: string): Promise<{ answer: string }> {
-  const fullText = nodes.map((n) => n.text).join("\n");
+  const fullText = nodes.map(nodeToText).join("\n");
   const answer = await answerQuestion(fullText, selectedText, question);
   return { answer };
 }

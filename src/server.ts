@@ -73,6 +73,103 @@ function renderPage(jsx: string): string {
       color: var(--ink-soft);
       margin: 0 0 1.4rem;
     }
+    [data-htllm-root] ol {
+      margin: 0 0 1.4rem;
+      padding-left: 1.4rem;
+      font-size: 1.02rem;
+      line-height: 1.9;
+      color: var(--ink-soft);
+    }
+    [data-htllm-root] ol li {
+      margin-bottom: 0.3rem;
+    }
+    .htllm-callout {
+      margin: 0 0 1.4rem;
+      padding: 0.9rem 1.1rem;
+      background: var(--accent-soft);
+      border-left: 3px solid var(--accent);
+      border-radius: 6px;
+      font-size: 0.98rem;
+      line-height: 1.7;
+      color: var(--ink);
+    }
+    [data-htllm-root] table {
+      display: block;
+      overflow-x: auto;
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0 0 1.4rem;
+      font-size: 0.95rem;
+    }
+    [data-htllm-root] th,
+    [data-htllm-root] td {
+      text-align: left;
+      padding: 0.5rem 0.8rem;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    [data-htllm-root] thead th {
+      background: var(--surface-sunken);
+      font-weight: 600;
+      color: var(--ink);
+    }
+    [data-htllm-root] td {
+      color: var(--ink-soft);
+    }
+    [data-htllm-root] pre {
+      margin: 0 0 1.4rem;
+      padding: 1rem 1.2rem;
+      background: var(--surface-sunken);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow-x: auto;
+    }
+    [data-htllm-root] pre code {
+      font-family: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.9rem;
+      color: var(--ink);
+      white-space: pre;
+    }
+    .htllm-card {
+      margin: 0 0 1.4rem;
+      padding: 1.1rem 1.3rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 1px 3px var(--shadow);
+    }
+    .htllm-card h3 {
+      margin: 0 0 0.5rem;
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--ink);
+    }
+    .htllm-card p {
+      margin: 0;
+      font-size: 0.95rem;
+      line-height: 1.7;
+      color: var(--ink-soft);
+    }
+    .htllm-diagram {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 0 0 1.4rem;
+    }
+    .htllm-diagram-box {
+      padding: 0.5rem 0.9rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.92rem;
+      color: var(--ink);
+      white-space: nowrap;
+    }
+    .htllm-diagram-arrow {
+      color: var(--ink-soft);
+      font-size: 1rem;
+    }
 
     #htllm-comments-panel {
       position: fixed;

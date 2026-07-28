@@ -257,6 +257,24 @@ describe("buildTree", () => {
     expect(prompt).toContain("特徴的な入力フレーズ");
     expect(prompt).toContain("heading");
     expect(prompt).toContain("prose");
+    expect(prompt).toContain("steps");
+    expect(prompt).toContain("callout");
+    expect(prompt).toContain("table");
+    expect(prompt).toContain("codeblock");
+    expect(prompt).toContain("card");
+    expect(prompt).toContain("diagram");
+  });
+
+  it("text以外のフィールドを持つ部品(steps)もそのままNode化する", async () => {
+    runTurnMock.mockResolvedValue({
+      result: '[{"type":"steps","items":["準備する","実行する"]}]',
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const nodes = await buildTree("手順を含む入力テキスト");
+
+    expect(nodes).toEqual([{ id: "n1", type: "steps", items: ["準備する", "実行する"] }]);
   });
 
   it("作業ディレクトリ等のメタな言及を禁止する指示を含む", async () => {
@@ -278,9 +296,9 @@ describe("updateNode", () => {
     runTurnMock.mockReset();
   });
 
-  it("ノードの現在のtextと指示をプロンプトに含める", async () => {
+  it("ノードの現在のフィールドと指示をプロンプトに含める", async () => {
     runTurnMock.mockResolvedValue({
-      result: "新しい本文",
+      result: '{"text":"新しい本文"}',
       sessionId: "session-1",
       stopReason: "end_turn",
     });
@@ -292,9 +310,9 @@ describe("updateNode", () => {
     expect(prompt).toContain("もっと短くして");
   });
 
-  it("idとtypeを保ち、textだけLLMの返り値で差し替えた新ノードを返す", async () => {
+  it("idとtypeを保ち、フィールドだけLLMの返り値(JSON)で差し替えた新ノードを返す", async () => {
     runTurnMock.mockResolvedValue({
-      result: "新しい本文",
+      result: '{"text":"新しい本文"}',
       sessionId: "session-1",
       stopReason: "end_turn",
     });
@@ -304,9 +322,36 @@ describe("updateNode", () => {
     expect(node).toEqual({ id: "n2", type: "prose", text: "新しい本文" });
   });
 
+  it("```json コードフェンスで包まれていても中身をパースする", async () => {
+    runTurnMock.mockResolvedValue({
+      result: '```json\n{"text":"新しい本文"}\n```',
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const node = await updateNode({ id: "n2", type: "prose", text: "古い本文" }, "指示");
+
+    expect(node).toEqual({ id: "n2", type: "prose", text: "新しい本文" });
+  });
+
+  it("複数フィールドを持つ部品(card)でも、返り値のフィールドをまとめて差し替える", async () => {
+    runTurnMock.mockResolvedValue({
+      result: '{"title":"新見出し","text":"新本文"}',
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const node = await updateNode(
+      { id: "c1", type: "card", title: "旧見出し", text: "旧本文" },
+      "見出しと本文を書き換えて",
+    );
+
+    expect(node).toEqual({ id: "c1", type: "card", title: "新見出し", text: "新本文" });
+  });
+
   it("作業ディレクトリ等のメタな言及を禁止する指示を含む", async () => {
     runTurnMock.mockResolvedValue({
-      result: "新しい本文",
+      result: '{"text":"新しい本文"}',
       sessionId: "session-1",
       stopReason: "end_turn",
     });
