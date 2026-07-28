@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderNode, renderTree } from "./tree.js";
+import { renderNode, renderTree, replaceNode, type Node } from "./tree.js";
 
 describe("renderNode", () => {
   it("proseノードをdata-node-id付きの段落JSXにする", () => {
@@ -34,5 +34,27 @@ describe("renderTree", () => {
         '<p data-node-id="p1">{"本文"}</p>' +
         '</div>',
     );
+  });
+});
+
+describe("replaceNode", () => {
+  it("該当idのノードだけを差し替え、他はそのまま保つ", () => {
+    const nodes: Node[] = [
+      { id: "n1", type: "heading", text: "A" },
+      { id: "n2", type: "prose", text: "B" },
+    ];
+
+    const result = replaceNode(nodes, "n2", { id: "n2", type: "prose", text: "B2" });
+
+    expect(result).toEqual([
+      { id: "n1", type: "heading", text: "A" },
+      { id: "n2", type: "prose", text: "B2" },
+    ]);
+  });
+
+  it("存在しないidを指定するとthrowする", () => {
+    expect(() =>
+      replaceNode([], "missing", { id: "missing", type: "prose", text: "x" }),
+    ).toThrow();
   });
 });

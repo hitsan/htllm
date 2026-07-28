@@ -5,7 +5,7 @@ vi.mock("./claude/runTurn.js", () => ({
   runTurn: (...args: unknown[]) => runTurnMock(...args),
 }));
 
-const { renderDocument, editDocument, rewriteFragment, replaceFragment, buildTree } = await import("./render.js");
+const { renderDocument, editDocument, rewriteFragment, replaceFragment, buildTree, updateNode } = await import("./render.js");
 
 describe("renderDocument", () => {
   beforeEach(() => {
@@ -257,5 +257,37 @@ describe("buildTree", () => {
     expect(prompt).toContain("特徴的な入力フレーズ");
     expect(prompt).toContain("heading");
     expect(prompt).toContain("prose");
+  });
+});
+
+describe("updateNode", () => {
+  beforeEach(() => {
+    runTurnMock.mockReset();
+  });
+
+  it("ノードの現在のtextと指示をプロンプトに含める", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "新しい本文",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    await updateNode({ id: "n2", type: "prose", text: "古い本文" }, "もっと短くして");
+
+    const [prompt] = runTurnMock.mock.calls[0];
+    expect(prompt).toContain("古い本文");
+    expect(prompt).toContain("もっと短くして");
+  });
+
+  it("idとtypeを保ち、textだけLLMの返り値で差し替えた新ノードを返す", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "新しい本文",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const node = await updateNode({ id: "n2", type: "prose", text: "古い本文" }, "指示");
+
+    expect(node).toEqual({ id: "n2", type: "prose", text: "新しい本文" });
   });
 });

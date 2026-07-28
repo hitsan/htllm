@@ -28,6 +28,22 @@ ${inputText}`;
   return raw.map((n, i) => ({ id: `n${i + 1}`, type: n.type, text: n.text }) as Node);
 }
 
+export async function updateNode(node: Node, instruction: string): Promise<Node> {
+  const prompt = `次の部品の中身(text)を、以下の指示に従って書き換えてください。
+書き換えた後のtextだけを返してください。説明文やコードブロックの \`\`\` は不要です。
+
+指示:
+${instruction}
+
+現在のtext:
+${node.text}`;
+
+  const { result } = await runTurn(prompt);
+  const fenced = extractFencedContent(result);
+  const text = fenced !== null ? fenced : result.trim();
+  return { ...node, text };
+}
+
 const DESIGN_PRINCIPLES = `- 自己完結: 外部CDN・Webフォント・外部画像への参照は使わない。すべてインラインCSSで完結させる
 - テーマ対応: ページ全体の背景色・基本の文字色は既に設定済みで、prefers-color-schemeに応じて
   自動的に読みやすい配色（ライト時は黒系の文字に白系の背景、ダーク時はその逆）が継承されます。

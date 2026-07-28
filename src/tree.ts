@@ -15,3 +15,10 @@ export function renderNode(node: Node): string {
 export function renderTree(nodes: Node[]): string {
   return `<div data-htllm-root>${nodes.map(renderNode).join("")}</div>`;
 }
+
+export function replaceNode(nodes: Node[], id: string, newNode: Node): Node[] {
+  if (!nodes.some((n) => n.id === id)) {
+    throw new Error(`node not found: ${id}`);
+  }
+  return nodes.map((n) => (n.id === id ? newNode : n));
+}
