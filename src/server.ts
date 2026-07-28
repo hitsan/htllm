@@ -12,21 +12,66 @@ function renderPage(jsx: string): string {
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
+    :root {
+      --bg: #f5f4ed;
+      --surface: #ffffff;
+      --surface-sunken: #ece8da;
+      --ink: #3d3929;
+      --ink-soft: #6b6558;
+      --border: #e3dfcf;
+      --accent: #c1602f;
+      --accent-soft: #f1e0d2;
+      --shadow: rgba(61, 57, 41, 0.15);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #262624;
+        --surface: #30302e;
+        --surface-sunken: #1f1e1c;
+        --ink: #e8e6dc;
+        --ink-soft: #a39e90;
+        --border: #403d35;
+        --accent: #da7756;
+        --accent-soft: #40291d;
+        --shadow: rgba(0, 0, 0, 0.4);
+      }
+    }
+
+    * { box-sizing: border-box; }
+
     body {
       margin: 0;
       display: flex;
       justify-content: center;
       min-height: 100vh;
-      background: #ffffff;
-      color: #1a1a1a;
+      background: var(--bg);
+      color: var(--ink);
       padding-right: 320px;
-      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
     }
-    @media (prefers-color-scheme: dark) {
-      body {
-        background: #1a1a1a;
-        color: #e5e5e5;
-      }
+
+    #root {
+      width: 100%;
+      max-width: 700px;
+      padding: 4.5rem 2rem 6rem;
+    }
+
+    [data-htllm-root] h2 {
+      font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
+      font-size: 1.7rem;
+      font-weight: 600;
+      line-height: 1.5;
+      color: var(--ink);
+      margin: 0 0 1.3rem;
+    }
+    [data-htllm-root] h2:not(:first-child) {
+      margin-top: 2.6rem;
+    }
+    [data-htllm-root] p {
+      font-size: 1.02rem;
+      line-height: 1.9;
+      color: var(--ink-soft);
+      margin: 0 0 1.4rem;
     }
 
     #htllm-comments-panel {
@@ -36,129 +81,93 @@ function renderPage(jsx: string): string {
       width: 320px;
       height: 100vh;
       overflow-y: auto;
-      box-sizing: border-box;
-      padding: 12px;
-      background: #fafafa;
-      border-left: 1px solid #d8d8d8;
-      font-family: system-ui, -apple-system, sans-serif;
+      padding: 20px 16px;
+      background: var(--surface-sunken);
+      border-left: 1px solid var(--border);
+      font-family: -apple-system, "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
       font-size: 13px;
-      color: #1a1a1a;
-    }
-    @media (prefers-color-scheme: dark) {
-      #htllm-comments-panel {
-        background: #222222;
-        border-color: #444444;
-        color: #e5e5e5;
-      }
+      color: var(--ink);
     }
     #htllm-comments-panel:empty::before {
       content: "テキストを選択して質問・指示するとここに表示されます";
-      color: #999999;
+      color: var(--ink-soft);
     }
     .htllm-comment-card {
-      border: 1px solid #d8d8d8;
-      border-radius: 8px;
-      padding: 8px 10px;
-      margin-bottom: 10px;
-    }
-    @media (prefers-color-scheme: dark) {
-      .htllm-comment-card {
-        border-color: #444444;
-      }
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
     }
     .htllm-comment-quote {
       font-size: 12px;
-      color: #888888;
-      border-left: 2px solid #d8d8d8;
-      padding-left: 6px;
-      margin-bottom: 6px;
+      color: var(--ink-soft);
+      border-left: 2px solid var(--accent);
+      padding-left: 8px;
+      margin-bottom: 8px;
       white-space: pre-wrap;
     }
     .htllm-comment-label {
       display: inline-block;
       font-size: 11px;
-      padding: 1px 6px;
-      border-radius: 4px;
-      background: #eeeeee;
-      margin-bottom: 4px;
-    }
-    @media (prefers-color-scheme: dark) {
-      .htllm-comment-label {
-        background: #383838;
-      }
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 20px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      margin-bottom: 6px;
     }
     .htllm-comment-message {
       white-space: pre-wrap;
-      margin-bottom: 6px;
+      margin-bottom: 8px;
+      color: var(--ink);
     }
     .htllm-comment-answer {
       white-space: pre-wrap;
-      color: #444444;
-      border-top: 1px solid #eeeeee;
-      padding-top: 6px;
-    }
-    @media (prefers-color-scheme: dark) {
-      .htllm-comment-answer {
-        color: #bbbbbb;
-        border-color: #3a3a3a;
-      }
+      color: var(--ink-soft);
+      border-top: 1px solid var(--border);
+      padding-top: 8px;
     }
 
     #htllm-selection-popup {
       position: absolute;
       z-index: 1000;
       display: none;
-      background: #ffffff;
-      border: 1px solid #d8d8d8;
-      border-radius: 8px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
-      padding: 6px;
-      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 4px 16px var(--shadow);
+      padding: 8px;
+      font-family: -apple-system, "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
       font-size: 13px;
-      color: #1a1a1a;
+      color: var(--ink);
     }
-    @media (prefers-color-scheme: dark) {
-      #htllm-selection-popup {
-        background: #2a2a2a;
-        border-color: #444444;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
-        color: #e5e5e5;
-      }
-    }
-    #htllm-selection-input-area { display: flex; flex-direction: column; gap: 6px; }
+    #htllm-selection-input-area { display: flex; flex-direction: column; gap: 8px; }
     #htllm-selection-buttons-row { display: flex; gap: 6px; justify-content: flex-end; }
     #htllm-selection-buttons-row button {
       cursor: pointer;
-      border: 1px solid #d8d8d8;
-      background: #f5f5f7;
-      color: inherit;
+      border: none;
+      background: var(--accent);
+      color: #ffffff;
       border-radius: 6px;
-      padding: 4px 10px;
+      padding: 5px 12px;
       font-size: 13px;
+      font-weight: 600;
       white-space: nowrap;
     }
-    @media (prefers-color-scheme: dark) {
-      #htllm-selection-buttons-row button {
-        border-color: #444444;
-        background: #383838;
-      }
+    #htllm-selection-buttons-row button:hover {
+      filter: brightness(1.08);
     }
     #htllm-selection-input {
       font-family: inherit;
       font-size: 15px;
       padding: 8px 10px;
-      border: 1px solid #d8d8d8;
+      border: 1px solid var(--border);
       border-radius: 6px;
-      background: #ffffff;
-      color: inherit;
+      background: var(--bg);
+      color: var(--ink);
       width: 360px;
       resize: vertical;
-    }
-    @media (prefers-color-scheme: dark) {
-      #htllm-selection-input {
-        border-color: #444444;
-        background: #1f1f1f;
-      }
     }
   </style>
 </head>
