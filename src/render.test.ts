@@ -5,7 +5,7 @@ vi.mock("./claude/runTurn.js", () => ({
   runTurn: (...args: unknown[]) => runTurnMock(...args),
 }));
 
-const { renderDocument, editDocument, rewriteFragment, replaceFragment } = await import("./render.js");
+const { renderDocument, editDocument, rewriteFragment, replaceFragment, buildTree } = await import("./render.js");
 
 describe("renderDocument", () => {
   beforeEach(() => {
@@ -209,5 +209,53 @@ describe("replaceFragment", () => {
 
   it("throws when the selected text is not found in the current text", () => {
     expect(() => replaceFragment("Hello World", "Nowhere", "htllm")).toThrow();
+  });
+});
+
+describe("buildTree", () => {
+  beforeEach(() => {
+    runTurnMock.mockReset();
+  });
+
+  it("LLMが返した部品配列を、コード側で採番したid付きのNode[]にする", async () => {
+    runTurnMock.mockResolvedValue({
+      result: '[{"type":"heading","text":"タイトル"},{"type":"prose","text":"本文"}]',
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const nodes = await buildTree("何かの入力テキスト");
+
+    expect(nodes).toEqual([
+      { id: "n1", type: "heading", text: "タイトル" },
+      { id: "n2", type: "prose", text: "本文" },
+    ]);
+  });
+
+  it("```json コードフェンスで包まれていても中身をパースする", async () => {
+    runTurnMock.mockResolvedValue({
+      result: '```json\n[{"type":"prose","text":"本文"}]\n```',
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const nodes = await buildTree("入力");
+
+    expect(nodes).toEqual([{ id: "n1", type: "prose", text: "本文" }]);
+  });
+
+  it("入力テキストと利用可能な部品名をプロンプトに含める", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "[]",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    await buildTree("特徴的な入力フレーズ");
+
+    const [prompt] = runTurnMock.mock.calls[0];
+    expect(prompt).toContain("特徴的な入力フレーズ");
+    expect(prompt).toContain("heading");
+    expect(prompt).toContain("prose");
   });
 });
