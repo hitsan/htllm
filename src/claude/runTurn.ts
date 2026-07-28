@@ -11,7 +11,17 @@ export function runTurn(
   prompt: string,
   options?: { resumeSessionId?: string },
 ): Promise<RunTurnResult> {
-  const args = ["-p", prompt, "--output-format", "stream-json", "--verbose"];
+  const args = [
+    "-p",
+    prompt,
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    // このタスクはテキスト変換だけでツールを必要としない。誤ってツールを
+    // 実行したりツール前提の応答を混ぜたりしないよう明示的に封じる
+    "--disallowedTools",
+    "Bash,Edit,Write,Read,Glob,Grep,WebFetch,WebSearch,Task,NotebookEdit",
+  ];
   if (options?.resumeSessionId) {
     args.push("--resume", options.resumeSessionId);
   }

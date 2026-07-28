@@ -1,6 +1,6 @@
 import { createServer as createHttpServer } from "node:http";
 
-export type TurnHandler = (selectedText: string, instruction: string) => Promise<{ jsx: string }>;
+export type TurnHandler = (nodeId: string, instruction: string) => Promise<{ jsx: string }>;
 export type AskHandler = (selectedText: string, question: string) => Promise<{ answer: string }>;
 
 function renderPage(jsx: string): string {
@@ -182,6 +182,7 @@ function renderPage(jsx: string): string {
   var questionBtn = document.getElementById("htllm-selection-question-btn");
   var instructBtn = document.getElementById("htllm-selection-instruct-btn");
   var selectedText = "";
+  var selectedNodeId = null;
 
   function resetPopup() {
     input.value = "";
@@ -204,6 +205,10 @@ function renderPage(jsx: string): string {
     }
     selectedText = text;
     var range = selection.getRangeAt(0);
+    var container = range.commonAncestorContainer;
+    var el = container.nodeType === 1 ? container : container.parentElement;
+    var nodeEl = el ? el.closest("[data-node-id]") : null;
+    selectedNodeId = nodeEl ? nodeEl.getAttribute("data-node-id") : null;
     var rect = range.getBoundingClientRect();
     popup.style.left = (rect.left + window.scrollX) + "px";
     popup.style.top = (rect.bottom + window.scrollY + 6) + "px";
@@ -242,7 +247,7 @@ function renderPage(jsx: string): string {
   }
 
   function rerender(jsx) {
-    var code = Babel.transform(jsx, { presets: ["react"] }).code;
+    var code = Babel.transform(jsx, { presets: [["react", { runtime: "classic" }]] }).code;
     (0, eval)(code);
   }
 
@@ -267,10 +272,14 @@ function renderPage(jsx: string): string {
           answerEl.textContent = data.answer;
         });
     } else {
+      if (!selectedNodeId) {
+        answerEl.textContent = "エラー: この選択範囲は更新できる部品に含まれていません";
+        return;
+      }
       fetch("/api/turn", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ selectedText: quote, instruction: value }),
+        body: JSON.stringify({ nodeId: selectedNodeId, instruction: value }),
       })
         .then(function (res) {
           return res.json().then(function (data) {
@@ -308,9 +317,9 @@ export function createServer(jsx: string, onTurn: TurnHandler, onAsk: AskHandler
         body += chunk;
       });
       req.on("end", async () => {
-        const { selectedText, instruction } = JSON.parse(body);
+        const { nodeId, instruction } = JSON.parse(body);
         try {
-          const turn = await onTurn(selectedText, instruction);
+          const turn = await onTurn(nodeId, instruction);
           currentJsx = turn.jsx;
 
           res.writeHead(200, { "Content-Type": "application/json" });

@@ -1,44 +1,58 @@
+import { readFile, writeFile } from "node:fs/promises";
 import { createServer } from "./server.js";
-import { loadConfig } from "./config.js";
-import { connect } from "./db.js";
-import { renderDocument, rewriteFragment, replaceFragment, answerQuestion } from "./render.js";
+import { buildTree, updateNode, answerQuestion } from "./render.js";
+import { renderTree, replaceNode, type Node } from "./tree.js";
 
-const config = loadConfig(".htllm");
-const db = await connect(config.mongodbUri);
-const collection = db.collection<{ text: string }>("documents");
+const DOC_PATH = "doc.json";
 
-let doc = await collection.findOne({});
-if (!doc) {
-  const initial = { text: "htllmへようこそ。ここはMongoDBに保存されたテキストです。" };
-  const { insertedId } = await collection.insertOne(initial);
-  doc = { ...initial, _id: insertedId };
+async function loadTree(): Promise<Node[]> {
+  try {
+    const raw = await readFile(DOC_PATH, "utf-8");
+    return JSON.parse(raw) as Node[];
+  } catch {
+    return [];
+  }
 }
 
-async function onTurn(selectedText: string, instruction: string): Promise<{ jsx: string }> {
-  const current = await collection.findOne({});
-  const currentText = current?.text ?? "";
-  const newFragment = await rewriteFragment(selectedText, instruction);
-  const newText = replaceFragment(currentText, selectedText, newFragment);
+async function saveTree(nodes: Node[]): Promise<void> {
+  await writeFile(DOC_PATH, JSON.stringify(nodes, null, 2), "utf-8");
+}
 
-  if (current) {
-    await collection.updateOne({ _id: current._id }, { $set: { text: newText } });
-  } else {
-    await collection.insertOne({ text: newText });
+function toJsx(nodes: Node[]): string {
+  return `
+window.__htllmRoot = window.__htllmRoot || ReactDOM.createRoot(document.getElementById('root'));
+window.__htllmRoot.render(${renderTree(nodes)});
+`;
+}
+
+let nodes = await loadTree();
+if (nodes.length === 0) {
+  const initial = "htllmへようこそ。これはファイルに保存された部品ツリーから表示されています。テキストを選択すると、その部品だけを指示で更新できます。";
+  nodes = await buildTree(initial);
+  await saveTree(nodes);
+}
+
+async function onTurn(nodeId: string, instruction: string): Promise<{ jsx: string }> {
+  const target = nodes.find((n) => n.id === nodeId);
+  if (!target) {
+    throw new Error(`node not found: ${nodeId}`);
   }
-
-  const jsx = await renderDocument({ text: newText });
-  return { jsx };
+  const newNode = await updateNode(target, instruction);
+  nodes = replaceNode(nodes, nodeId, newNode);
+  await saveTree(nodes);
+  return { jsx: toJsx(nodes) };
 }
 
 async function onAsk(selectedText: string, question: string): Promise<{ answer: string }> {
-  const current = await collection.findOne({});
-  const answer = await answerQuestion(current?.text ?? "", selectedText, question);
+  const fullText = nodes.map((n) => n.text).join("\n");
+  const answer = await answerQuestion(fullText, selectedText, question);
   return { answer };
 }
 
-const jsx = await renderDocument(doc);
+const jsx = toJsx(nodes);
 
 const port = 3000;
-createServer(jsx, onTurn, onAsk).listen(port, () => {
+const server = createServer(jsx, onTurn, onAsk);
+server.listen(port, () => {
   console.log(`Listening on http://localhost:${port}`);
 });

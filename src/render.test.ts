@@ -258,6 +258,19 @@ describe("buildTree", () => {
     expect(prompt).toContain("heading");
     expect(prompt).toContain("prose");
   });
+
+  it("作業ディレクトリ等のメタな言及を禁止する指示を含む", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "[]",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    await buildTree("入力");
+
+    const [prompt] = runTurnMock.mock.calls[0];
+    expect(prompt).toContain("無関係な内容は");
+  });
 });
 
 describe("updateNode", () => {
@@ -289,5 +302,18 @@ describe("updateNode", () => {
     const node = await updateNode({ id: "n2", type: "prose", text: "古い本文" }, "指示");
 
     expect(node).toEqual({ id: "n2", type: "prose", text: "新しい本文" });
+  });
+
+  it("作業ディレクトリ等のメタな言及を禁止する指示を含む", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "新しい本文",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    await updateNode({ id: "n2", type: "prose", text: "古い本文" }, "指示");
+
+    const [prompt] = runTurnMock.mock.calls[0];
+    expect(prompt).toContain("無関係な内容は");
   });
 });

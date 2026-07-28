@@ -119,22 +119,22 @@ describe("POST /api/turn", () => {
     const res = await fetch(`${baseUrl}/api/turn`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ selectedText: "old", instruction: "hello" }),
+      body: JSON.stringify({ nodeId: "n1", instruction: "hello" }),
     });
 
     expect(res.status).toBe(200);
   });
 
-  it("calls onTurn with the selectedText and instruction from the request body", async () => {
+  it("calls onTurn with the nodeId and instruction from the request body", async () => {
     onTurn.mockResolvedValue({ jsx: "<h1>updated</h1>" });
 
     await fetch(`${baseUrl}/api/turn`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ selectedText: "old", instruction: "hello" }),
+      body: JSON.stringify({ nodeId: "n1", instruction: "hello" }),
     });
 
-    expect(onTurn).toHaveBeenCalledWith("old", "hello");
+    expect(onTurn).toHaveBeenCalledWith("n1", "hello");
   });
 
   it("returns onTurn's jsx as JSON", async () => {
@@ -143,7 +143,7 @@ describe("POST /api/turn", () => {
     const res = await fetch(`${baseUrl}/api/turn`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ selectedText: "old", instruction: "hello" }),
+      body: JSON.stringify({ nodeId: "n1", instruction: "hello" }),
     });
     const body = await res.json();
 
@@ -156,7 +156,7 @@ describe("POST /api/turn", () => {
     await fetch(`${baseUrl}/api/turn`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ selectedText: "old", instruction: "hello" }),
+      body: JSON.stringify({ nodeId: "n1", instruction: "hello" }),
     });
 
     const res = await fetch(baseUrl);
@@ -166,16 +166,16 @@ describe("POST /api/turn", () => {
   });
 
   it("returns status 400 with an error message when onTurn rejects", async () => {
-    onTurn.mockRejectedValue(new Error("selected text not found in the current document"));
+    onTurn.mockRejectedValue(new Error("node not found: n1"));
 
     const res = await fetch(`${baseUrl}/api/turn`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ selectedText: "old", instruction: "hello" }),
+      body: JSON.stringify({ nodeId: "n1", instruction: "hello" }),
     });
     const body = await res.json();
 
     expect(res.status).toBe(400);
-    expect(body).toEqual({ error: "selected text not found in the current document" });
+    expect(body).toEqual({ error: "node not found: n1" });
   });
 });
