@@ -263,6 +263,13 @@ describe("buildTree", () => {
     expect(prompt).toContain("codeblock");
     expect(prompt).toContain("card");
     expect(prompt).toContain("diagram");
+    expect(prompt).toContain("hero");
+    expect(prompt).toContain("compare");
+    expect(prompt).toContain("flow");
+    expect(prompt).toContain("gallery");
+    expect(prompt).toContain("timeline");
+    expect(prompt).toContain("recommendation");
+    expect(prompt).toContain("qa");
   });
 
   it("text以外のフィールドを持つ部品(steps)もそのままNode化する", async () => {

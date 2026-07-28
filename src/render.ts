@@ -12,7 +12,14 @@ const COMPONENT_CATALOG = `- heading: 節や文書の見出し。フィールド
 - table: 比較・一覧の表。フィールド: headers（列見出しの配列）, rows（行の配列。各行は文字列の配列）
 - codeblock: コードや設定の断片。フィールド: code
 - card: 見出し＋本文のまとまり。フィールド: title, text
-- diagram: 箱を矢印でつないだ簡単な関係図。フィールド: nodes（箱のラベルの配列。順につながる）`;
+- diagram: 箱を矢印でつないだ簡単な関係図。フィールド: nodes（箱のラベルの配列。順につながる）
+- hero: 文書やセクションの導入。フィールド: eyebrow（短い文脈ラベル）, title（大見出し）, lede（リード文）
+- compare: 2案の対比。フィールド: left, right（それぞれ { label, text, tone }。toneは"bad"|"good"|"neutral"）
+- flow: 役割付きの処理フロー図。フィールド: nodes（{ label, value, sub?, role } の配列。roleは"input"|"core"|"output"|"neutral"）
+- gallery: 同種の項目のカード一覧。フィールド: items（{ title, text } の配列）
+- timeline: 番号付きの手順・経過。フィールド: steps（{ title, text, emphasis? } の配列。emphasisは重要なステップをtrueにする）
+- recommendation: 結論・推奨のまとめ。フィールド: title, items（文字列の配列）
+- qa: 論点・Q&Aの一覧。フィールド: items（{ label, text } の配列）`;
 
 const OUTPUT_DISCIPLINE = `作業ディレクトリ・使用可能なツール・セッションの状態など、このタスクに無関係な内容は一切書かないでください。求められた出力だけを返してください。`;
 
