@@ -1,18 +1,20 @@
 import { describe, it, expect, beforeAll, afterAll, vi, beforeEach, afterEach } from "vitest";
 import { createServer } from "./server.js";
 import type { Server } from "node:http";
-import type { TurnHandler, AskHandler } from "./server.js";
+import type { CreateThreadHandler, ReplyThreadHandler, GetThreadHandler, DeleteThreadHandler } from "./server.js";
 
 describe("createServer", () => {
   let server: Server;
   let baseUrl: string;
 
   const jsx = "<h1>Hello htllm</h1>";
-  const onTurn = vi.fn<TurnHandler>();
-  const onAsk = vi.fn<AskHandler>();
+  const onCreateThread = vi.fn<CreateThreadHandler>();
+  const onReply = vi.fn<ReplyThreadHandler>();
+  const onGetThread = vi.fn<GetThreadHandler>();
+  const onDeleteThread = vi.fn<DeleteThreadHandler>();
 
   beforeAll(async () => {
-    server = createServer(jsx, onTurn, onAsk);
+    server = createServer(jsx, onCreateThread, onReply, onGetThread, onDeleteThread);
     await new Promise<void>((resolve) => server.listen(0, resolve));
     const address = server.address();
     const port = typeof address === "object" && address ? address.port : 0;
@@ -79,7 +81,7 @@ describe("createServer", () => {
 
   it("generates different HTML for different content", async () => {
     const otherJsx = "<h1>Different content</h1>";
-    const otherServer = createServer(otherJsx, onTurn, onAsk);
+    const otherServer = createServer(otherJsx, onCreateThread, onReply, onGetThread, onDeleteThread);
     await new Promise<void>((resolve) => otherServer.listen(0, resolve));
     const address = otherServer.address();
     const port = typeof address === "object" && address ? address.port : 0;
@@ -93,16 +95,20 @@ describe("createServer", () => {
   });
 });
 
-describe("POST /api/turn", () => {
+describe("POST /api/threads", () => {
   let server: Server;
   let baseUrl: string;
-  let onTurn: ReturnType<typeof vi.fn<TurnHandler>>;
-  let onAsk: ReturnType<typeof vi.fn<AskHandler>>;
+  let onCreateThread: ReturnType<typeof vi.fn<CreateThreadHandler>>;
+  let onReply: ReturnType<typeof vi.fn<ReplyThreadHandler>>;
+  let onGetThread: ReturnType<typeof vi.fn<GetThreadHandler>>;
+  let onDeleteThread: ReturnType<typeof vi.fn<DeleteThreadHandler>>;
 
   beforeEach(async () => {
-    onTurn = vi.fn<TurnHandler>();
-    onAsk = vi.fn<AskHandler>();
-    server = createServer("<h1>initial</h1>", onTurn, onAsk);
+    onCreateThread = vi.fn<CreateThreadHandler>();
+    onReply = vi.fn<ReplyThreadHandler>();
+    onGetThread = vi.fn<GetThreadHandler>();
+    onDeleteThread = vi.fn<DeleteThreadHandler>();
+    server = createServer("<h1>initial</h1>", onCreateThread, onReply, onGetThread, onDeleteThread);
     await new Promise<void>((resolve) => server.listen(0, resolve));
     const address = server.address();
     const port = typeof address === "object" && address ? address.port : 0;
@@ -114,49 +120,55 @@ describe("POST /api/turn", () => {
   });
 
   it("returns status 200", async () => {
-    onTurn.mockResolvedValue({ jsx: "<h1>updated</h1>" });
+    onCreateThread.mockResolvedValue({ threadId: "t1", jsx: "<h1>updated</h1>" });
 
-    const res = await fetch(`${baseUrl}/api/turn`, {
+    const res = await fetch(`${baseUrl}/api/threads`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nodeId: "n1", instruction: "hello" }),
+      body: JSON.stringify({ nodeId: "n1", start: 0, end: 3, mode: "question", message: "これは？" }),
     });
 
     expect(res.status).toBe(200);
   });
 
-  it("calls onTurn with the nodeId and instruction from the request body", async () => {
-    onTurn.mockResolvedValue({ jsx: "<h1>updated</h1>" });
+  it("calls onCreateThread with the fields from the request body", async () => {
+    onCreateThread.mockResolvedValue({ threadId: "t1", jsx: "<h1>updated</h1>" });
 
-    await fetch(`${baseUrl}/api/turn`, {
+    await fetch(`${baseUrl}/api/threads`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nodeId: "n1", instruction: "hello" }),
+      body: JSON.stringify({ nodeId: "n1", start: 0, end: 3, mode: "question", message: "これは？" }),
     });
 
-    expect(onTurn).toHaveBeenCalledWith("n1", "hello");
+    expect(onCreateThread).toHaveBeenCalledWith({
+      nodeId: "n1",
+      start: 0,
+      end: 3,
+      mode: "question",
+      message: "これは？",
+    });
   });
 
-  it("returns onTurn's jsx as JSON", async () => {
-    onTurn.mockResolvedValue({ jsx: "<h1>updated</h1>" });
+  it("returns threadId/jsx as JSON", async () => {
+    onCreateThread.mockResolvedValue({ threadId: "t1", jsx: "<h1>updated</h1>" });
 
-    const res = await fetch(`${baseUrl}/api/turn`, {
+    const res = await fetch(`${baseUrl}/api/threads`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nodeId: "n1", instruction: "hello" }),
+      body: JSON.stringify({ nodeId: "n1", start: 0, end: 3, mode: "instruct", message: "短くして" }),
     });
     const body = await res.json();
 
-    expect(body).toEqual({ jsx: "<h1>updated</h1>" });
+    expect(body).toEqual({ threadId: "t1", jsx: "<h1>updated</h1>" });
   });
 
   it("reflects the updated jsx on subsequent GET /", async () => {
-    onTurn.mockResolvedValue({ jsx: "<h1>updated</h1>" });
+    onCreateThread.mockResolvedValue({ threadId: "t1", jsx: "<h1>updated</h1>" });
 
-    await fetch(`${baseUrl}/api/turn`, {
+    await fetch(`${baseUrl}/api/threads`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nodeId: "n1", instruction: "hello" }),
+      body: JSON.stringify({ nodeId: "n1", start: 0, end: 3, mode: "question", message: "これは？" }),
     });
 
     const res = await fetch(baseUrl);
@@ -165,17 +177,229 @@ describe("POST /api/turn", () => {
     expect(body).toContain("<h1>updated</h1>");
   });
 
-  it("returns status 400 with an error message when onTurn rejects", async () => {
-    onTurn.mockRejectedValue(new Error("node not found: n1"));
+  it("returns status 400 with an error message when onCreateThread rejects", async () => {
+    onCreateThread.mockRejectedValue(new Error("node not found: n1"));
 
-    const res = await fetch(`${baseUrl}/api/turn`, {
+    const res = await fetch(`${baseUrl}/api/threads`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nodeId: "n1", instruction: "hello" }),
+      body: JSON.stringify({ nodeId: "n1", start: 0, end: 3, mode: "question", message: "これは？" }),
     });
     const body = await res.json();
 
     expect(res.status).toBe(400);
     expect(body).toEqual({ error: "node not found: n1" });
+  });
+});
+
+describe("POST /api/threads/:id/reply", () => {
+  let server: Server;
+  let baseUrl: string;
+  let onCreateThread: ReturnType<typeof vi.fn<CreateThreadHandler>>;
+  let onReply: ReturnType<typeof vi.fn<ReplyThreadHandler>>;
+  let onGetThread: ReturnType<typeof vi.fn<GetThreadHandler>>;
+  let onDeleteThread: ReturnType<typeof vi.fn<DeleteThreadHandler>>;
+
+  beforeEach(async () => {
+    onCreateThread = vi.fn<CreateThreadHandler>();
+    onReply = vi.fn<ReplyThreadHandler>();
+    onGetThread = vi.fn<GetThreadHandler>();
+    onDeleteThread = vi.fn<DeleteThreadHandler>();
+    server = createServer("<h1>initial</h1>", onCreateThread, onReply, onGetThread, onDeleteThread);
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const address = server.address();
+    const port = typeof address === "object" && address ? address.port : 0;
+    baseUrl = `http://localhost:${port}`;
+  });
+
+  afterEach(() => {
+    server.close();
+  });
+
+  it("returns status 200", async () => {
+    onReply.mockResolvedValue({ jsx: "<h1>updated</h1>", answer: "続きの回答" });
+
+    const res = await fetch(`${baseUrl}/api/threads/t1/reply`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "じゃあこの場合は？" }),
+    });
+
+    expect(res.status).toBe(200);
+  });
+
+  it("calls onReply with the threadId from the URL and message from the body", async () => {
+    onReply.mockResolvedValue({ jsx: "<h1>updated</h1>", answer: "続きの回答" });
+
+    await fetch(`${baseUrl}/api/threads/t1/reply`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "じゃあこの場合は？" }),
+    });
+
+    expect(onReply).toHaveBeenCalledWith("t1", "じゃあこの場合は？");
+  });
+
+  it("returns jsx/answer as JSON", async () => {
+    onReply.mockResolvedValue({ jsx: "<h1>updated</h1>", answer: "続きの回答" });
+
+    const res = await fetch(`${baseUrl}/api/threads/t1/reply`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "じゃあこの場合は？" }),
+    });
+    const body = await res.json();
+
+    expect(body).toEqual({ jsx: "<h1>updated</h1>", answer: "続きの回答" });
+  });
+
+  it("returns status 400 with an error message when onReply rejects", async () => {
+    onReply.mockRejectedValue(new Error("thread not found: t1"));
+
+    const res = await fetch(`${baseUrl}/api/threads/t1/reply`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "じゃあこの場合は？" }),
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body).toEqual({ error: "thread not found: t1" });
+  });
+});
+
+describe("GET /api/threads/:id", () => {
+  let server: Server;
+  let baseUrl: string;
+  let onCreateThread: ReturnType<typeof vi.fn<CreateThreadHandler>>;
+  let onReply: ReturnType<typeof vi.fn<ReplyThreadHandler>>;
+  let onGetThread: ReturnType<typeof vi.fn<GetThreadHandler>>;
+  let onDeleteThread: ReturnType<typeof vi.fn<DeleteThreadHandler>>;
+
+  beforeEach(async () => {
+    onCreateThread = vi.fn<CreateThreadHandler>();
+    onReply = vi.fn<ReplyThreadHandler>();
+    onGetThread = vi.fn<GetThreadHandler>();
+    onDeleteThread = vi.fn<DeleteThreadHandler>();
+    server = createServer("<h1>initial</h1>", onCreateThread, onReply, onGetThread, onDeleteThread);
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const address = server.address();
+    const port = typeof address === "object" && address ? address.port : 0;
+    baseUrl = `http://localhost:${port}`;
+  });
+
+  afterEach(() => {
+    server.close();
+  });
+
+  it("returns pending:true while the answer is not ready", async () => {
+    onGetThread.mockResolvedValue({ pending: true, answer: "", jsx: "<h1>initial</h1>" });
+
+    const res = await fetch(`${baseUrl}/api/threads/t1`);
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body).toEqual({ pending: true, answer: "", jsx: "<h1>initial</h1>" });
+  });
+
+  it("returns pending:false with the answer once ready", async () => {
+    onGetThread.mockResolvedValue({ pending: false, answer: "回答", jsx: "<h1>updated</h1>" });
+
+    const res = await fetch(`${baseUrl}/api/threads/t1`);
+    const body = await res.json();
+
+    expect(body).toEqual({ pending: false, answer: "回答", jsx: "<h1>updated</h1>" });
+  });
+
+  it("calls onGetThread with the id from the URL", async () => {
+    onGetThread.mockResolvedValue({ pending: true, answer: "", jsx: "<h1>initial</h1>" });
+
+    await fetch(`${baseUrl}/api/threads/abc123`);
+
+    expect(onGetThread).toHaveBeenCalledWith("abc123");
+  });
+
+  it("returns status 404 when the thread does not exist", async () => {
+    onGetThread.mockResolvedValue(null);
+
+    const res = await fetch(`${baseUrl}/api/threads/missing`);
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body).toEqual({ error: "thread not found: missing" });
+  });
+});
+
+describe("DELETE /api/threads/:id", () => {
+  let server: Server;
+  let baseUrl: string;
+  let onCreateThread: ReturnType<typeof vi.fn<CreateThreadHandler>>;
+  let onReply: ReturnType<typeof vi.fn<ReplyThreadHandler>>;
+  let onGetThread: ReturnType<typeof vi.fn<GetThreadHandler>>;
+  let onDeleteThread: ReturnType<typeof vi.fn<DeleteThreadHandler>>;
+
+  beforeEach(async () => {
+    onCreateThread = vi.fn<CreateThreadHandler>();
+    onReply = vi.fn<ReplyThreadHandler>();
+    onGetThread = vi.fn<GetThreadHandler>();
+    onDeleteThread = vi.fn<DeleteThreadHandler>();
+    server = createServer("<h1>initial</h1>", onCreateThread, onReply, onGetThread, onDeleteThread);
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const address = server.address();
+    const port = typeof address === "object" && address ? address.port : 0;
+    baseUrl = `http://localhost:${port}`;
+  });
+
+  afterEach(() => {
+    server.close();
+  });
+
+  it("returns status 200 with the updated jsx", async () => {
+    onDeleteThread.mockResolvedValue({ jsx: "<h1>updated</h1>" });
+
+    const res = await fetch(`${baseUrl}/api/threads/t1`, { method: "DELETE" });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body).toEqual({ jsx: "<h1>updated</h1>" });
+  });
+
+  it("calls onDeleteThread with the id from the URL", async () => {
+    onDeleteThread.mockResolvedValue({ jsx: "<h1>updated</h1>" });
+
+    await fetch(`${baseUrl}/api/threads/abc123`, { method: "DELETE" });
+
+    expect(onDeleteThread).toHaveBeenCalledWith("abc123");
+  });
+
+  it("reflects the updated jsx on subsequent GET /", async () => {
+    onDeleteThread.mockResolvedValue({ jsx: "<h1>updated</h1>" });
+
+    await fetch(`${baseUrl}/api/threads/t1`, { method: "DELETE" });
+
+    const res = await fetch(baseUrl);
+    const body = await res.text();
+
+    expect(body).toContain("<h1>updated</h1>");
+  });
+
+  it("returns status 404 when the thread does not exist", async () => {
+    onDeleteThread.mockResolvedValue(null);
+
+    const res = await fetch(`${baseUrl}/api/threads/missing`, { method: "DELETE" });
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body).toEqual({ error: "thread not found: missing" });
+  });
+
+  it("returns status 400 with an error message when onDeleteThread rejects", async () => {
+    onDeleteThread.mockRejectedValue(new Error("boom"));
+
+    const res = await fetch(`${baseUrl}/api/threads/t1`, { method: "DELETE" });
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body).toEqual({ error: "boom" });
   });
 });

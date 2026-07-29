@@ -30,6 +30,39 @@ describe("renderNode", () => {
     expect(jsx).toBe('<p data-node-id="n2">{"</p><script>\\"{}"}</p>');
   });
 
+  it("proseノードにrangesを渡すとその範囲だけmarkで囲む", () => {
+    const jsx = renderNode(
+      { id: "n1", type: "prose", text: "こんにちは世界" },
+      [{ id: "t1", start: 5, end: 7 }],
+    );
+
+    expect(jsx).toBe(
+      '<p data-node-id="n1">{"こんにちは"}<mark data-thread-id="t1">{"世界"}</mark></p>',
+    );
+  });
+
+  it("headingノードにrangesを渡すとその範囲だけmarkで囲む", () => {
+    const jsx = renderNode(
+      { id: "h1", type: "heading", text: "タイトル文言" },
+      [{ id: "t1", start: 0, end: 4 }],
+    );
+
+    expect(jsx).toBe(
+      '<h2 data-node-id="h1"><mark data-thread-id="t1">{"タイトル"}</mark>{"文言"}</h2>',
+    );
+  });
+
+  it("calloutノードにrangesを渡すとその範囲だけmarkで囲む", () => {
+    const jsx = renderNode(
+      { id: "c1", type: "callout", text: "注意事項" },
+      [{ id: "t1", start: 0, end: 2 }],
+    );
+
+    expect(jsx).toBe(
+      '<div data-node-id="c1" className="htllm-callout"><mark data-thread-id="t1">{"注意"}</mark>{"事項"}</div>',
+    );
+  });
+
   it("stepsノードを順序リストのJSXにする", () => {
     const jsx = renderNode({ id: "s1", type: "steps", items: ["準備する", "実行する"] });
 
@@ -264,6 +297,23 @@ describe("renderTree", () => {
       '<div data-htllm-root>' +
         '<h2 data-node-id="h1">{"見出し"}</h2>' +
         '<p data-node-id="p1">{"本文"}</p>' +
+        '</div>',
+    );
+  });
+
+  it("threadsを渡すと対応するノードのrangeにだけmarkが付く", () => {
+    const jsx = renderTree(
+      [
+        { id: "h1", type: "heading", text: "見出し" },
+        { id: "p1", type: "prose", text: "本文です" },
+      ],
+      [{ id: "t1", nodeId: "p1", range: { start: 0, end: 2 }, mode: "question", quote: "本文", messages: [] }],
+    );
+
+    expect(jsx).toBe(
+      '<div data-htllm-root>' +
+        '<h2 data-node-id="h1">{"見出し"}</h2>' +
+        '<p data-node-id="p1"><mark data-thread-id="t1">{"本文"}</mark>{"です"}</p>' +
         '</div>',
     );
   });

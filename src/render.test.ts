@@ -5,7 +5,7 @@ vi.mock("./claude/runTurn.js", () => ({
   runTurn: (...args: unknown[]) => runTurnMock(...args),
 }));
 
-const { renderDocument, editDocument, rewriteFragment, replaceFragment, buildTree, updateNode } = await import("./render.js");
+const { renderDocument, editDocument, rewriteFragment, replaceFragment, buildTree, updateNode, answerQuestion } = await import("./render.js");
 
 describe("renderDocument", () => {
   beforeEach(() => {
@@ -325,9 +325,9 @@ describe("updateNode", () => {
       stopReason: "end_turn",
     });
 
-    const node = await updateNode({ id: "n2", type: "prose", text: "古い本文" }, "指示");
+    const result = await updateNode({ id: "n2", type: "prose", text: "古い本文" }, "指示");
 
-    expect(node).toEqual({ id: "n2", type: "prose", text: "新しい本文" });
+    expect(result.node).toEqual({ id: "n2", type: "prose", text: "新しい本文" });
   });
 
   it("```json コードフェンスで包まれていても中身をパースする", async () => {
@@ -337,9 +337,9 @@ describe("updateNode", () => {
       stopReason: "end_turn",
     });
 
-    const node = await updateNode({ id: "n2", type: "prose", text: "古い本文" }, "指示");
+    const result = await updateNode({ id: "n2", type: "prose", text: "古い本文" }, "指示");
 
-    expect(node).toEqual({ id: "n2", type: "prose", text: "新しい本文" });
+    expect(result.node).toEqual({ id: "n2", type: "prose", text: "新しい本文" });
   });
 
   it("複数フィールドを持つ部品(card)でも、返り値のフィールドをまとめて差し替える", async () => {
@@ -349,12 +349,12 @@ describe("updateNode", () => {
       stopReason: "end_turn",
     });
 
-    const node = await updateNode(
+    const result = await updateNode(
       { id: "c1", type: "card", title: "旧見出し", text: "旧本文" },
       "見出しと本文を書き換えて",
     );
 
-    expect(node).toEqual({ id: "c1", type: "card", title: "新見出し", text: "新本文" });
+    expect(result.node).toEqual({ id: "c1", type: "card", title: "新見出し", text: "新本文" });
   });
 
   it("作業ディレクトリ等のメタな言及を禁止する指示を含む", async () => {
@@ -368,5 +368,76 @@ describe("updateNode", () => {
 
     const [prompt] = runTurnMock.mock.calls[0];
     expect(prompt).toContain("無関係な内容は");
+  });
+
+  it("runTurnが返したsessionIdをそのまま返す", async () => {
+    runTurnMock.mockResolvedValue({
+      result: '{"text":"新しい本文"}',
+      sessionId: "session-abc",
+      stopReason: "end_turn",
+    });
+
+    const result = await updateNode({ id: "n2", type: "prose", text: "古い本文" }, "指示");
+
+    expect(result.sessionId).toBe("session-abc");
+  });
+
+  it("resumeSessionIdを渡すとrunTurnにresumeSessionIdとして渡す", async () => {
+    runTurnMock.mockResolvedValue({
+      result: '{"text":"新しい本文"}',
+      sessionId: "session-abc",
+      stopReason: "end_turn",
+    });
+
+    await updateNode({ id: "n2", type: "prose", text: "古い本文" }, "もっと短く", "session-prev");
+
+    const [, options] = runTurnMock.mock.calls[0];
+    expect(options).toEqual({ resumeSessionId: "session-prev" });
+  });
+});
+
+describe("answerQuestion", () => {
+  beforeEach(() => {
+    runTurnMock.mockReset();
+  });
+
+  it("文章全体・選択部分・質問をプロンプトに含める", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "回答です",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    await answerQuestion("文章全体", "選択部分", "質問文");
+
+    const [prompt] = runTurnMock.mock.calls[0];
+    expect(prompt).toContain("文章全体");
+    expect(prompt).toContain("選択部分");
+    expect(prompt).toContain("質問文");
+  });
+
+  it("回答とsessionIdを返す", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "回答です",
+      sessionId: "session-abc",
+      stopReason: "end_turn",
+    });
+
+    const result = await answerQuestion("文章全体", "選択部分", "質問文");
+
+    expect(result).toEqual({ answer: "回答です", sessionId: "session-abc" });
+  });
+
+  it("resumeSessionIdを渡すとrunTurnにresumeSessionIdとして渡す", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "回答です",
+      sessionId: "session-abc",
+      stopReason: "end_turn",
+    });
+
+    await answerQuestion("文章全体", "選択部分", "続けての質問", "session-prev");
+
+    const [, options] = runTurnMock.mock.calls[0];
+    expect(options).toEqual({ resumeSessionId: "session-prev" });
   });
 });

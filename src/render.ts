@@ -45,7 +45,11 @@ ${inputText}`;
   return raw.map((n, i) => ({ id: `n${i + 1}`, ...n }) as Node);
 }
 
-export async function updateNode(node: Node, instruction: string): Promise<Node> {
+export async function updateNode(
+  node: Node,
+  instruction: string,
+  resumeSessionId?: string,
+): Promise<{ node: Node; sessionId: string }> {
   const { type, ...fields } = node;
   const prompt = `次の部品(${type})の中身を、以下の指示に従って書き換えてください。
 書き換えた後のフィールドだけをJSONオブジェクトとして返してください（type, idは含めない）。
@@ -58,10 +62,10 @@ ${instruction}
 現在の中身:
 ${JSON.stringify(fields)}`;
 
-  const { result } = await runTurn(prompt);
+  const { result, sessionId } = await runTurn(prompt, resumeSessionId ? { resumeSessionId } : undefined);
   const json = extractFencedContent(result) ?? result.trim();
   const newFields = JSON.parse(json) as Record<string, unknown>;
-  return { ...node, ...newFields } as Node;
+  return { node: { ...node, ...newFields } as Node, sessionId };
 }
 
 const DESIGN_PRINCIPLES = `- 自己完結: 外部CDN・Webフォント・外部画像への参照は使わない。すべてインラインCSSで完結させる
@@ -136,7 +140,12 @@ export function replaceFragment(currentText: string, selectedText: string, newFr
   return currentText.replace(selectedText, newFragment);
 }
 
-export async function answerQuestion(fullText: string, selectedText: string, question: string): Promise<string> {
+export async function answerQuestion(
+  fullText: string,
+  selectedText: string,
+  question: string,
+  resumeSessionId?: string,
+): Promise<{ answer: string; sessionId: string }> {
   const prompt = `次の文章の一部が選択されています。選択された部分に関する質問に、日本語で簡潔に答えてください。
 説明文の前置きは不要で、回答だけを返してください。
 
@@ -149,8 +158,8 @@ ${selectedText}
 質問:
 ${question}`;
 
-  const { result } = await runTurn(prompt);
-  return result.trim();
+  const { result, sessionId } = await runTurn(prompt, resumeSessionId ? { resumeSessionId } : undefined);
+  return { answer: result.trim(), sessionId };
 }
 
 function extractFencedContent(text: string): string | null {

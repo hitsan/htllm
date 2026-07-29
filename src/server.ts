@@ -1,7 +1,17 @@
 import { createServer as createHttpServer } from "node:http";
 
-export type TurnHandler = (nodeId: string, instruction: string) => Promise<{ jsx: string }>;
-export type AskHandler = (selectedText: string, question: string) => Promise<{ answer: string }>;
+export type CreateThreadHandler = (params: {
+  nodeId: string;
+  start: number;
+  end: number;
+  mode: "question" | "instruct";
+  message: string;
+}) => Promise<{ threadId: string; jsx: string }>;
+export type ReplyThreadHandler = (threadId: string, message: string) => Promise<{ jsx: string; answer: string }>;
+export type GetThreadHandler = (
+  threadId: string,
+) => Promise<{ pending: boolean; answer: string; jsx: string } | null>;
+export type DeleteThreadHandler = (threadId: string) => Promise<{ jsx: string } | null>;
 
 function renderPage(jsx: string): string {
   return `<!doctype html>
@@ -30,6 +40,8 @@ function renderPage(jsx: string): string {
       --llm-soft: #f6ebda;
       --danger: #b0403a;
       --danger-soft: #f6e4e0;
+      --highlight-bg: #fff176;
+      --highlight-ink: #3f3600;
       --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
       --shadow: rgba(24, 36, 48, 0.12);
     }
@@ -51,8 +63,52 @@ function renderPage(jsx: string): string {
         --llm-soft: #33260f;
         --danger: #e08079;
         --danger-soft: #3a241f;
+        --highlight-bg: #8a6d1a;
+        --highlight-ink: #fff8e1;
         --shadow: rgba(0, 0, 0, 0.4);
       }
+    }
+    :root[data-theme="light"] {
+      --bg: #f7f9fb;
+      --surface: #ffffff;
+      --surface-sunken: #eef2f6;
+      --ink: #182430;
+      --ink-soft: #46586a;
+      --muted: #6d7f90;
+      --border: #dbe3ea;
+      --border-strong: #c2cdd7;
+      --accent: #37559c;
+      --accent-soft: #e7ecf7;
+      --fixed: #1c7a68;
+      --fixed-soft: #e0f0ec;
+      --llm: #b06a12;
+      --llm-soft: #f6ebda;
+      --danger: #b0403a;
+      --danger-soft: #f6e4e0;
+      --highlight-bg: #fff176;
+      --highlight-ink: #3f3600;
+      --shadow: rgba(24, 36, 48, 0.12);
+    }
+    :root[data-theme="dark"] {
+      --bg: #0f151b;
+      --surface: #161f27;
+      --surface-sunken: #1c262f;
+      --ink: #e4ebf2;
+      --ink-soft: #b3c1cd;
+      --muted: #8698a6;
+      --border: #28333d;
+      --border-strong: #37444f;
+      --accent: #8aa4e0;
+      --accent-soft: #1e2836;
+      --fixed: #4fbfa8;
+      --fixed-soft: #123029;
+      --llm: #d69a4e;
+      --llm-soft: #33260f;
+      --danger: #e08079;
+      --danger-soft: #3a241f;
+      --highlight-bg: #8a6d1a;
+      --highlight-ink: #fff8e1;
+      --shadow: rgba(0, 0, 0, 0.4);
     }
 
     * { box-sizing: border-box; }
@@ -529,12 +585,15 @@ function renderPage(jsx: string): string {
       width: 320px;
       height: 100vh;
       overflow-y: auto;
-      padding: 20px 16px;
+      padding: 16px;
       background: var(--surface-sunken);
       border-left: 1px solid var(--border);
       font-family: -apple-system, "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
       font-size: 13px;
       color: var(--ink);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
     }
     @media (max-width: 900px) {
       body {
@@ -544,18 +603,30 @@ function renderPage(jsx: string): string {
         display: none;
       }
     }
-    #htllm-comments-panel:empty::before {
-      content: "テキストを選択して質問・指示するとここに表示されます";
+    #htllm-theme-toggle {
+      flex: none;
+      align-self: flex-end;
+      background: var(--surface);
       color: var(--ink-soft);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 4px 12px;
+      font-size: 12px;
+      cursor: pointer;
     }
-    .htllm-comment-card {
+    #htllm-theme-toggle:hover {
+      color: var(--ink);
+      border-color: var(--border-strong);
+    }
+    #htllm-composer {
+      flex: none;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 12px 14px;
-      margin-bottom: 12px;
     }
-    .htllm-comment-quote {
+    #htllm-composer-quote {
+      display: none;
       font-size: 12px;
       color: var(--ink-soft);
       border-left: 2px solid var(--accent);
@@ -563,44 +634,25 @@ function renderPage(jsx: string): string {
       margin-bottom: 8px;
       white-space: pre-wrap;
     }
-    .htllm-comment-label {
-      display: inline-block;
-      font-size: 11px;
-      font-weight: 600;
-      padding: 2px 8px;
-      border-radius: 20px;
-      background: var(--accent-soft);
-      color: var(--accent);
-      margin-bottom: 6px;
-    }
-    .htllm-comment-message {
-      white-space: pre-wrap;
-      margin-bottom: 8px;
-      color: var(--ink);
-    }
-    .htllm-comment-answer {
-      white-space: pre-wrap;
-      color: var(--ink-soft);
-      border-top: 1px solid var(--border);
-      padding-top: 8px;
-    }
-
-    #htllm-selection-popup {
-      position: absolute;
-      z-index: 1000;
-      display: none;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      box-shadow: 0 4px 16px var(--shadow);
-      padding: 8px;
-      font-family: -apple-system, "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+    #htllm-composer-input {
+      width: 100%;
+      box-sizing: border-box;
+      font-family: inherit;
       font-size: 13px;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg);
       color: var(--ink);
+      resize: vertical;
+      margin-bottom: 8px;
     }
-    #htllm-selection-input-area { display: flex; flex-direction: column; gap: 8px; }
-    #htllm-selection-buttons-row { display: flex; gap: 6px; justify-content: flex-end; }
-    #htllm-selection-buttons-row button {
+    #htllm-composer-buttons {
+      display: flex;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+    #htllm-composer-buttons button {
       cursor: pointer;
       border: none;
       background: var(--accent);
@@ -611,152 +663,385 @@ function renderPage(jsx: string): string {
       font-weight: 600;
       white-space: nowrap;
     }
-    #htllm-selection-buttons-row button:hover {
+    #htllm-composer-buttons button:hover {
       filter: brightness(1.08);
     }
-    #htllm-selection-input {
+    #htllm-threads:empty::before {
+      content: "テキストを選択して質問・指示するか、ハイライトをクリックするとここにスレッドが表示されます";
+      color: var(--ink-soft);
+    }
+    .htllm-thread-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+      position: relative;
+    }
+    .htllm-comment-quote {
+      font-size: 12px;
+      color: var(--ink-soft);
+      border-left: 2px solid var(--accent);
+      padding-left: 8px;
+      padding-right: 48px;
+      margin-bottom: 8px;
+      white-space: pre-wrap;
+    }
+    .htllm-thread-delete {
+      position: absolute;
+      top: 12px;
+      right: 14px;
+      background: none;
+      border: 1px solid var(--border-strong);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 11px;
+      padding: 2px 10px;
+      cursor: pointer;
+    }
+    .htllm-thread-delete:hover {
+      color: var(--danger);
+      border-color: var(--danger);
+    }
+    .htllm-thread-messages {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .htllm-thread-msg {
+      white-space: pre-wrap;
+    }
+    .htllm-thread-msg-user {
+      color: var(--ink);
+      font-weight: 600;
+    }
+    .htllm-thread-msg-assistant {
+      color: var(--ink-soft);
+      border-top: 1px solid var(--border);
+      padding-top: 8px;
+    }
+    .htllm-thread-msg-assistant[data-pending="true"] {
+      font-style: italic;
+      color: var(--muted);
+    }
+    .htllm-thread-reply-input {
+      width: 100%;
+      box-sizing: border-box;
       font-family: inherit;
-      font-size: 15px;
-      padding: 8px 10px;
+      font-size: 12px;
+      padding: 6px 8px;
       border: 1px solid var(--border);
       border-radius: 6px;
       background: var(--bg);
       color: var(--ink);
-      width: 360px;
       resize: vertical;
+    }
+    mark[data-thread-id] {
+      background: var(--highlight-bg);
+      color: var(--highlight-ink);
+      border-radius: 3px;
+      padding: 0 2px;
+      cursor: pointer;
+    }
+    mark[data-thread-id]:hover {
+      filter: brightness(0.95);
     }
   </style>
 </head>
 <body>
 <div id="root"></div>
-<div id="htllm-selection-popup">
-  <div id="htllm-selection-input-area">
-    <textarea id="htllm-selection-input" placeholder="質問または指示を入力" rows="3"></textarea>
-    <div id="htllm-selection-buttons-row">
-      <button type="button" id="htllm-selection-question-btn">質問</button>
-      <button type="button" id="htllm-selection-instruct-btn">指示</button>
+<div id="htllm-comments-panel">
+  <button type="button" id="htllm-theme-toggle" aria-label="ライト/ダークモード切り替え"></button>
+  <div id="htllm-composer">
+    <div id="htllm-composer-quote"></div>
+    <textarea id="htllm-composer-input" placeholder="テキストを選択して質問または指示を入力" rows="3"></textarea>
+    <div id="htllm-composer-buttons">
+      <button type="button" id="htllm-composer-question-btn">質問</button>
+      <button type="button" id="htllm-composer-instruct-btn">指示</button>
     </div>
   </div>
+  <div id="htllm-threads"></div>
 </div>
-<div id="htllm-comments-panel"></div>
 <script>
 (function () {
-  var popup = document.getElementById("htllm-selection-popup");
-  var input = document.getElementById("htllm-selection-input");
   var panel = document.getElementById("htllm-comments-panel");
-  var questionBtn = document.getElementById("htllm-selection-question-btn");
-  var instructBtn = document.getElementById("htllm-selection-instruct-btn");
-  var selectedText = "";
-  var selectedNodeId = null;
+  var quoteEl = document.getElementById("htllm-composer-quote");
+  var input = document.getElementById("htllm-composer-input");
+  var questionBtn = document.getElementById("htllm-composer-question-btn");
+  var instructBtn = document.getElementById("htllm-composer-instruct-btn");
+  var threadsEl = document.getElementById("htllm-threads");
+  var themeToggle = document.getElementById("htllm-theme-toggle");
 
-  function resetPopup() {
-    input.value = "";
+  function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    themeToggle.textContent = theme === "dark" ? "☀ ライトモード" : "☾ ダークモード";
   }
 
-  function hidePopup() {
-    popup.style.display = "none";
-    resetPopup();
+  var savedTheme = localStorage.getItem("htllm-theme");
+  var systemTheme = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  applyTheme(savedTheme || systemTheme);
+
+  themeToggle.addEventListener("click", function () {
+    var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    localStorage.setItem("htllm-theme", next);
+    applyTheme(next);
+  });
+
+  var selectedNodeId = null;
+  var selectedStart = null;
+  var selectedEnd = null;
+  var selectedQuote = "";
+
+  function getOffsetsWithinNode(range, nodeEl) {
+    var preRange = document.createRange();
+    preRange.selectNodeContents(nodeEl);
+    preRange.setEnd(range.startContainer, range.startOffset);
+    var start = preRange.toString().length;
+    var end = start + range.toString().length;
+    return { start: start, end: end };
   }
 
   document.addEventListener("mouseup", function (e) {
-    if (popup.contains(e.target)) {
+    if (panel.contains(e.target)) {
       return;
     }
     var selection = window.getSelection();
     var text = selection ? selection.toString().trim() : "";
     if (text.length === 0) {
-      hidePopup();
       return;
     }
-    selectedText = text;
     var range = selection.getRangeAt(0);
     var container = range.commonAncestorContainer;
     var el = container.nodeType === 1 ? container : container.parentElement;
     var nodeEl = el ? el.closest("[data-node-id]") : null;
-    selectedNodeId = nodeEl ? nodeEl.getAttribute("data-node-id") : null;
-    var rect = range.getBoundingClientRect();
-    popup.style.left = (rect.left + window.scrollX) + "px";
-    popup.style.top = (rect.bottom + window.scrollY + 6) + "px";
-    popup.style.display = "block";
-    resetPopup();
+    if (!nodeEl) {
+      return;
+    }
+    var offsets = getOffsetsWithinNode(range, nodeEl);
+    selectedNodeId = nodeEl.getAttribute("data-node-id");
+    selectedStart = offsets.start;
+    selectedEnd = offsets.end;
+    selectedQuote = text;
+    quoteEl.textContent = "選択中: " + text;
+    quoteEl.style.display = "block";
     input.focus();
   });
 
-  function addCommentCard(quote, modeLabel, message) {
-    var card = document.createElement("div");
-    card.className = "htllm-comment-card";
+  function resetComposer() {
+    input.value = "";
+    quoteEl.textContent = "";
+    quoteEl.style.display = "none";
+    selectedNodeId = null;
+    selectedStart = null;
+    selectedEnd = null;
+    selectedQuote = "";
+  }
 
-    var quoteEl = document.createElement("div");
-    quoteEl.className = "htllm-comment-quote";
-    quoteEl.textContent = quote;
-    card.appendChild(quoteEl);
+  var threadsCache = {};
+  var activeThreadId = null;
 
-    var labelEl = document.createElement("div");
-    labelEl.className = "htllm-comment-label";
-    labelEl.textContent = modeLabel;
-    card.appendChild(labelEl);
+  function attachHighlightClickHandlers() {
+    var marks = document.querySelectorAll("mark[data-thread-id]");
+    marks.forEach(function (mark) {
+      mark.addEventListener("click", function () {
+        showThread(mark.getAttribute("data-thread-id"));
+      });
+    });
+  }
 
-    var messageEl = document.createElement("div");
-    messageEl.className = "htllm-comment-message";
-    messageEl.textContent = message;
-    card.appendChild(messageEl);
-
-    var answerEl = document.createElement("div");
-    answerEl.className = "htllm-comment-answer";
-    answerEl.textContent = "考え中...";
-    card.appendChild(answerEl);
-
-    panel.appendChild(card);
-    panel.scrollTop = panel.scrollHeight;
-    return answerEl;
+  function attachHighlightClickHandlersAfterPaint() {
+    requestAnimationFrame(function () {
+      requestAnimationFrame(attachHighlightClickHandlers);
+    });
   }
 
   function rerender(jsx) {
     var code = Babel.transform(jsx, { presets: [["react", { runtime: "classic" }]] }).code;
     (0, eval)(code);
+    attachHighlightClickHandlersAfterPaint();
+  }
+
+  function renderThreadPanel() {
+    threadsEl.innerHTML = "";
+    var thread = activeThreadId ? threadsCache[activeThreadId] : null;
+    if (!thread) {
+      return;
+    }
+
+    var card = document.createElement("div");
+    card.className = "htllm-thread-card";
+    card.setAttribute("data-thread-id", activeThreadId);
+
+    var quoteDiv = document.createElement("div");
+    quoteDiv.className = "htllm-comment-quote";
+    quoteDiv.textContent = thread.quote;
+    card.appendChild(quoteDiv);
+
+    var deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "htllm-thread-delete";
+    deleteBtn.textContent = "削除";
+    deleteBtn.addEventListener("click", function () {
+      deleteThread(activeThreadId);
+    });
+    card.appendChild(deleteBtn);
+
+    var messagesEl = document.createElement("div");
+    messagesEl.className = "htllm-thread-messages";
+    thread.messages.forEach(function (msg) {
+      var msgEl = document.createElement("div");
+      msgEl.className = "htllm-thread-msg htllm-thread-msg-" + msg.role;
+      msgEl.textContent = msg.text;
+      if (msg.pending) {
+        msgEl.setAttribute("data-pending", "true");
+      }
+      messagesEl.appendChild(msgEl);
+    });
+    card.appendChild(messagesEl);
+
+    var replyInput = document.createElement("textarea");
+    replyInput.className = "htllm-thread-reply-input";
+    replyInput.placeholder = "続けて聞く...";
+    replyInput.rows = 2;
+    replyInput.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+        submitReply(activeThreadId, replyInput);
+      }
+    });
+    card.appendChild(replyInput);
+
+    threadsEl.appendChild(card);
+  }
+
+  function showThread(threadId) {
+    if (!threadsCache[threadId]) {
+      return;
+    }
+    activeThreadId = threadId;
+    renderThreadPanel();
+  }
+
+  function pollThread(threadId) {
+    fetch("/api/threads/" + threadId)
+      .then(function (res) {
+        return res.json().then(function (data) {
+          if (!res.ok) {
+            return;
+          }
+          if (data.pending) {
+            setTimeout(function () {
+              pollThread(threadId);
+            }, 700);
+            return;
+          }
+          var thread = threadsCache[threadId];
+          if (thread) {
+            var lastMsg = thread.messages[thread.messages.length - 1];
+            if (lastMsg && lastMsg.pending) {
+              lastMsg.text = data.answer;
+              delete lastMsg.pending;
+            }
+            if (activeThreadId === threadId) {
+              renderThreadPanel();
+            }
+          }
+          rerender(data.jsx);
+        });
+      });
+  }
+
+  function submitReply(threadId, replyInput) {
+    var value = replyInput.value.trim();
+    var thread = threadsCache[threadId];
+    if (value.length === 0 || !thread) {
+      return;
+    }
+    thread.messages.push({ role: "user", text: value });
+    var pendingMsg = { role: "assistant", text: "回答を生成中…", pending: true };
+    thread.messages.push(pendingMsg);
+    renderThreadPanel();
+
+    fetch("/api/threads/" + threadId + "/reply", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: value }),
+    })
+      .then(function (res) {
+        return res.json().then(function (data) {
+          if (res.ok) {
+            pendingMsg.text = data.answer;
+            rerender(data.jsx);
+          } else {
+            pendingMsg.text = "エラー: " + data.error;
+          }
+          delete pendingMsg.pending;
+          if (activeThreadId === threadId) {
+            renderThreadPanel();
+          }
+        });
+      });
+  }
+
+  function deleteThread(threadId) {
+    fetch("/api/threads/" + threadId, { method: "DELETE" })
+      .then(function (res) {
+        return res.json().then(function (data) {
+          if (!res.ok) {
+            return;
+          }
+          delete threadsCache[threadId];
+          if (activeThreadId === threadId) {
+            activeThreadId = null;
+            renderThreadPanel();
+          }
+          rerender(data.jsx);
+        });
+      });
   }
 
   function submit(mode) {
     var value = input.value.trim();
-    if (value.length === 0) {
+    if (value.length === 0 || !selectedNodeId) {
       return;
     }
-    var quote = selectedText;
-    var modeLabel = mode === "question" ? "質問" : "指示";
-    var answerEl = addCommentCard(quote, modeLabel, value);
-    hidePopup();
+    var nodeId = selectedNodeId;
+    var start = selectedStart;
+    var end = selectedEnd;
+    var quote = selectedQuote;
+    resetComposer();
 
-    if (mode === "question") {
-      fetch("/api/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ selectedText: quote, question: value }),
-      })
-        .then(function (res) { return res.json(); })
-        .then(function (data) {
-          answerEl.textContent = data.answer;
+    fetch("/api/threads", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nodeId: nodeId, start: start, end: end, mode: mode, message: value }),
+    })
+      .then(function (res) {
+        return res.json().then(function (data) {
+          if (res.ok) {
+            threadsCache[data.threadId] = {
+              quote: quote,
+              messages: [
+                { role: "user", text: value },
+                { role: "assistant", text: "回答を生成中…", pending: true },
+              ],
+            };
+            showThread(data.threadId);
+            rerender(data.jsx);
+            pollThread(data.threadId);
+          } else {
+            var errId = "error-" + Date.now();
+            threadsCache[errId] = {
+              quote: quote,
+              messages: [
+                { role: "user", text: value },
+                { role: "assistant", text: "エラー: " + data.error },
+              ],
+            };
+            showThread(errId);
+          }
         });
-    } else {
-      if (!selectedNodeId) {
-        answerEl.textContent = "エラー: この選択範囲は更新できる部品に含まれていません";
-        return;
-      }
-      fetch("/api/turn", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nodeId: selectedNodeId, instruction: value }),
-      })
-        .then(function (res) {
-          return res.json().then(function (data) {
-            if (res.ok) {
-              answerEl.textContent = "反映しました";
-              rerender(data.jsx);
-            } else {
-              answerEl.textContent = "エラー: " + data.error;
-            }
-          });
-        });
-    }
+      });
   }
 
   questionBtn.addEventListener("click", function () {
@@ -765,6 +1050,7 @@ function renderPage(jsx: string): string {
   instructBtn.addEventListener("click", function () {
     submit("instruct");
   });
+  attachHighlightClickHandlersAfterPaint();
 })();
 </script>
 <script type="text/babel" id="htllm-jsx-script">${jsx}</script>
@@ -772,23 +1058,29 @@ function renderPage(jsx: string): string {
 </html>`;
 }
 
-export function createServer(jsx: string, onTurn: TurnHandler, onAsk: AskHandler) {
+export function createServer(
+  jsx: string,
+  onCreateThread: CreateThreadHandler,
+  onReply: ReplyThreadHandler,
+  onGetThread: GetThreadHandler,
+  onDeleteThread: DeleteThreadHandler,
+) {
   let currentJsx = jsx;
 
   return createHttpServer((req, res) => {
-    if (req.method === "POST" && req.url === "/api/turn") {
+    if (req.method === "POST" && req.url === "/api/threads") {
       let body = "";
       req.on("data", (chunk) => {
         body += chunk;
       });
       req.on("end", async () => {
-        const { nodeId, instruction } = JSON.parse(body);
+        const { nodeId, start, end, mode, message } = JSON.parse(body);
         try {
-          const turn = await onTurn(nodeId, instruction);
-          currentJsx = turn.jsx;
+          const thread = await onCreateThread({ nodeId, start, end, mode, message });
+          currentJsx = thread.jsx;
 
           res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ jsx: turn.jsx }));
+          res.end(JSON.stringify(thread));
         } catch (err) {
           res.writeHead(400, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
@@ -797,18 +1089,63 @@ export function createServer(jsx: string, onTurn: TurnHandler, onAsk: AskHandler
       return;
     }
 
-    if (req.method === "POST" && req.url === "/api/ask") {
+    const replyMatch = req.url?.match(/^\/api\/threads\/([^/]+)\/reply$/);
+    if (req.method === "POST" && replyMatch) {
+      const threadId = replyMatch[1];
       let body = "";
       req.on("data", (chunk) => {
         body += chunk;
       });
       req.on("end", async () => {
-        const { selectedText, question } = JSON.parse(body);
-        const { answer } = await onAsk(selectedText, question);
+        const { message } = JSON.parse(body);
+        try {
+          const reply = await onReply(threadId, message);
+          currentJsx = reply.jsx;
 
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ answer }));
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(reply));
+        } catch (err) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        }
       });
+      return;
+    }
+
+    const getMatch = req.url?.match(/^\/api\/threads\/([^/]+)$/);
+    if (req.method === "GET" && getMatch) {
+      const threadId = getMatch[1];
+      onGetThread(threadId).then((result) => {
+        if (result === null) {
+          res.writeHead(404, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: `thread not found: ${threadId}` }));
+          return;
+        }
+        currentJsx = result.jsx;
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(result));
+      });
+      return;
+    }
+
+    const deleteMatch = req.url?.match(/^\/api\/threads\/([^/]+)$/);
+    if (req.method === "DELETE" && deleteMatch) {
+      const threadId = deleteMatch[1];
+      onDeleteThread(threadId)
+        .then((result) => {
+          if (result === null) {
+            res.writeHead(404, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: `thread not found: ${threadId}` }));
+            return;
+          }
+          currentJsx = result.jsx;
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(result));
+        })
+        .catch((err) => {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        });
       return;
     }
 
