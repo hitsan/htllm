@@ -270,6 +270,7 @@ describe("buildTree", () => {
     expect(prompt).toContain("timeline");
     expect(prompt).toContain("recommendation");
     expect(prompt).toContain("qa");
+    expect(prompt).toContain("mockup");
   });
 
   it("text以外のフィールドを持つ部品(steps)もそのままNode化する", async () => {

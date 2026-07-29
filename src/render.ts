@@ -19,7 +19,8 @@ const COMPONENT_CATALOG = `- heading: 節や文書の見出し。フィールド
 - gallery: 同種の項目のカード一覧。フィールド: items（{ title, text } の配列）
 - timeline: 番号付きの手順・経過。フィールド: steps（{ title, text, emphasis? } の配列。emphasisは重要なステップをtrueにする）
 - recommendation: 結論・推奨のまとめ。フィールド: title, items（文字列の配列）
-- qa: 論点・Q&Aの一覧。フィールド: items（{ label, text } の配列）`;
+- qa: 論点・Q&Aの一覧。フィールド: items（{ label, text } の配列）
+- mockup: UIの見た目そのものの簡易モックアップ。フィールド: lines（{ kind, text } の配列。kindは"quote"|"label"|"answer"|"input"|"button"|"note"）`;
 
 const OUTPUT_DISCIPLINE = `作業ディレクトリ・使用可能なツール・セッションの状態など、このタスクに無関係な内容は一切書かないでください。求められた出力だけを返してください。`;
 

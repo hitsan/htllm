@@ -3,6 +3,7 @@ type FlowNode = { label: string; value: string; sub?: string; role: string };
 type GalleryItem = { title: string; text: string };
 type TimelineStep = { title: string; text: string; emphasis?: boolean };
 type QaItem = { label: string; text: string };
+type MockupLine = { kind: string; text: string };
 
 export type Node =
   | { id: string; type: "prose"; text: string }
@@ -19,7 +20,8 @@ export type Node =
   | { id: string; type: "gallery"; items: GalleryItem[] }
   | { id: string; type: "timeline"; steps: TimelineStep[] }
   | { id: string; type: "recommendation"; title: string; items: string[] }
-  | { id: string; type: "qa"; items: QaItem[] };
+  | { id: string; type: "qa"; items: QaItem[] }
+  | { id: string; type: "mockup"; lines: MockupLine[] };
 
 function lit(text: string): string {
   return `{${JSON.stringify(text)}}`;
@@ -93,6 +95,12 @@ export function renderNode(node: Node): string {
         .join("");
       return `<div data-node-id="${node.id}" className="htllm-qa">${items}</div>`;
     }
+    case "mockup": {
+      const lines = node.lines
+        .map((l) => `<div className="htllm-mockup-line" data-kind=${lit(l.kind)}>${lit(l.text)}</div>`)
+        .join("");
+      return `<div data-node-id="${node.id}" className="htllm-mockup">${lines}</div>`;
+    }
   }
 }
 
@@ -126,6 +134,8 @@ export function nodeToText(node: Node): string {
       return [node.title, ...node.items].join("\n");
     case "qa":
       return node.items.map((it) => `${it.label}: ${it.text}`).join("\n");
+    case "mockup":
+      return node.lines.map((l) => l.text).join("\n");
   }
 }
 

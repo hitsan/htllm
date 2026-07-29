@@ -233,6 +233,24 @@ describe("renderNode", () => {
         '</div>',
     );
   });
+
+  it("mockupノードをkind付き行のJSXにする", () => {
+    const jsx = renderNode({
+      id: "mk1",
+      type: "mockup",
+      lines: [
+        { kind: "quote", text: "選択されたテキストの引用" },
+        { kind: "button", text: "続けて聞く" },
+      ],
+    });
+
+    expect(jsx).toBe(
+      '<div data-node-id="mk1" className="htllm-mockup">' +
+        '<div className="htllm-mockup-line" data-kind={"quote"}>{"選択されたテキストの引用"}</div>' +
+        '<div className="htllm-mockup-line" data-kind={"button"}>{"続けて聞く"}</div>' +
+        '</div>',
+    );
+  });
 });
 
 describe("renderTree", () => {
@@ -371,6 +389,19 @@ describe("nodeToText", () => {
     });
 
     expect(text).toBe("Q1: 何個から始める?");
+  });
+
+  it("mockupはlinesのtextを改行区切りで返す", () => {
+    const text = nodeToText({
+      id: "mk1",
+      type: "mockup",
+      lines: [
+        { kind: "quote", text: "引用" },
+        { kind: "button", text: "続けて聞く" },
+      ],
+    });
+
+    expect(text).toBe("引用\n続けて聞く");
   });
 });
 
