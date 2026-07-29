@@ -14,6 +14,16 @@ describe("renderNode", () => {
     expect(jsx).toBe('<h2 data-node-id="h1">{"タイトル"}</h2>');
   });
 
+  it("headingノードにbadgeがあれば見出しの前に番号バッジを付ける", () => {
+    const jsx = renderNode({ id: "h2", type: "heading", text: "モデル", badge: "01" });
+
+    expect(jsx).toBe(
+      '<h2 data-node-id="h2">' +
+        '<span className="htllm-heading-badge">{"01"}</span>{"モデル"}' +
+        '</h2>',
+    );
+  });
+
   it("JSXを壊す文字を含んでも安全な文字列リテラルとして埋め込む", () => {
     const jsx = renderNode({ id: "n2", type: "prose", text: '</p><script>"{}' });
 

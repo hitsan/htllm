@@ -6,7 +6,7 @@ type QaItem = { label: string; text: string };
 
 export type Node =
   | { id: string; type: "prose"; text: string }
-  | { id: string; type: "heading"; text: string }
+  | { id: string; type: "heading"; text: string; badge?: string }
   | { id: string; type: "steps"; items: string[] }
   | { id: string; type: "callout"; text: string }
   | { id: string; type: "table"; headers: string[]; rows: string[][] }
@@ -29,8 +29,10 @@ export function renderNode(node: Node): string {
   switch (node.type) {
     case "prose":
       return `<p data-node-id="${node.id}">${lit(node.text)}</p>`;
-    case "heading":
-      return `<h2 data-node-id="${node.id}">${lit(node.text)}</h2>`;
+    case "heading": {
+      const badge = node.badge !== undefined ? `<span className="htllm-heading-badge">${lit(node.badge)}</span>` : "";
+      return `<h2 data-node-id="${node.id}">${badge}${lit(node.text)}</h2>`;
+    }
     case "steps": {
       const items = node.items.map((item) => `<li>${lit(item)}</li>`).join("");
       return `<ol data-node-id="${node.id}">${items}</ol>`;

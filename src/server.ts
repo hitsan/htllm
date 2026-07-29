@@ -14,34 +14,43 @@ function renderPage(jsx: string): string {
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
     :root {
-      --bg: #f5f4ed;
+      --bg: #f7f9fb;
       --surface: #ffffff;
-      --surface-sunken: #ece8da;
-      --ink: #3d3929;
-      --ink-soft: #6b6558;
-      --border: #e3dfcf;
-      --accent: #c1602f;
-      --accent-soft: #f1e0d2;
-      --good: #4b7a4f;
-      --good-soft: #e6efe3;
-      --bad: #b3483f;
-      --bad-soft: #f6e4e0;
-      --shadow: rgba(61, 57, 41, 0.15);
+      --surface-sunken: #eef2f6;
+      --ink: #182430;
+      --ink-soft: #46586a;
+      --muted: #6d7f90;
+      --border: #dbe3ea;
+      --border-strong: #c2cdd7;
+      --accent: #37559c;
+      --accent-soft: #e7ecf7;
+      --fixed: #1c7a68;
+      --fixed-soft: #e0f0ec;
+      --llm: #b06a12;
+      --llm-soft: #f6ebda;
+      --danger: #b0403a;
+      --danger-soft: #f6e4e0;
+      --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+      --shadow: rgba(24, 36, 48, 0.12);
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg: #262624;
-        --surface: #30302e;
-        --surface-sunken: #1f1e1c;
-        --ink: #e8e6dc;
-        --ink-soft: #a39e90;
-        --border: #403d35;
-        --accent: #da7756;
-        --accent-soft: #40291d;
-        --good: #7fb583;
-        --good-soft: #24352a;
-        --bad: #d97a6f;
-        --bad-soft: #3a241f;
+        --bg: #0f151b;
+        --surface: #161f27;
+        --surface-sunken: #1c262f;
+        --ink: #e4ebf2;
+        --ink-soft: #b3c1cd;
+        --muted: #8698a6;
+        --border: #28333d;
+        --border-strong: #37444f;
+        --accent: #8aa4e0;
+        --accent-soft: #1e2836;
+        --fixed: #4fbfa8;
+        --fixed-soft: #123029;
+        --llm: #d69a4e;
+        --llm-soft: #33260f;
+        --danger: #e08079;
+        --danger-soft: #3a241f;
         --shadow: rgba(0, 0, 0, 0.4);
       }
     }
@@ -66,12 +75,25 @@ function renderPage(jsx: string): string {
     }
 
     [data-htllm-root] h2 {
-      font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
-      font-size: 1.7rem;
-      font-weight: 600;
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
       line-height: 1.5;
       color: var(--ink);
       margin: 0 0 1.3rem;
+    }
+    .htllm-heading-badge {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--accent);
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      padding: 0.05rem 0.45rem;
+      white-space: nowrap;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 0.6rem;
     }
     [data-htllm-root] h2:not(:first-child) {
       margin-top: 2.6rem;
@@ -134,7 +156,7 @@ function renderPage(jsx: string): string {
       overflow-x: auto;
     }
     [data-htllm-root] pre code {
-      font-family: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
+      font-family: var(--mono);
       font-size: 0.9rem;
       color: var(--ink);
       white-space: pre;
@@ -183,17 +205,19 @@ function renderPage(jsx: string): string {
       margin: 0 0 2.4rem;
     }
     .htllm-hero-eyebrow {
+      font-family: var(--mono);
       font-size: 0.72rem;
-      letter-spacing: 0.12em;
+      letter-spacing: 0.18em;
       text-transform: uppercase;
-      color: var(--ink-soft);
-      margin: 0 0 0.8rem;
+      color: var(--muted);
+      margin: 0 0 0.9rem;
     }
     .htllm-hero h1 {
-      font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
-      font-size: clamp(1.7rem, 4vw, 2.3rem);
-      font-weight: 700;
-      line-height: 1.35;
+      font-size: clamp(1.8rem, 4vw, 2.7rem);
+      font-weight: 750;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      text-wrap: balance;
       color: var(--ink);
       margin: 0 0 1rem;
     }
@@ -221,12 +245,12 @@ function renderPage(jsx: string): string {
       background: var(--surface);
     }
     .htllm-compare-card[data-tone="bad"] {
-      border-color: var(--bad);
-      background: var(--bad-soft);
+      border-color: var(--danger);
+      background: var(--danger-soft);
     }
     .htllm-compare-card[data-tone="good"] {
-      border-color: var(--good);
-      background: var(--good-soft);
+      border-color: var(--fixed);
+      background: var(--fixed-soft);
     }
     .htllm-compare-label {
       font-weight: 600;
@@ -235,10 +259,10 @@ function renderPage(jsx: string): string {
       color: var(--ink);
     }
     .htllm-compare-card[data-tone="bad"] .htllm-compare-label {
-      color: var(--bad);
+      color: var(--danger);
     }
     .htllm-compare-card[data-tone="good"] .htllm-compare-label {
-      color: var(--good);
+      color: var(--fixed);
     }
     .htllm-compare-card p {
       margin: 0;
@@ -268,10 +292,11 @@ function renderPage(jsx: string): string {
     }
     .htllm-flow-k {
       display: block;
+      font-family: var(--mono);
       font-size: 0.66rem;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
-      color: var(--ink-soft);
+      color: var(--muted);
       margin-bottom: 0.25rem;
     }
     .htllm-flow-v {
@@ -287,11 +312,11 @@ function renderPage(jsx: string): string {
       margin-top: 0.2rem;
     }
     .htllm-flow-node[data-role="input"] {
-      border-color: var(--accent);
-      background: var(--accent-soft);
+      border-color: var(--llm);
+      background: var(--llm-soft);
     }
     .htllm-flow-node[data-role="input"] .htllm-flow-v {
-      color: var(--accent);
+      color: var(--llm);
     }
     .htllm-flow-node[data-role="core"] {
       border-color: var(--accent);
@@ -301,11 +326,11 @@ function renderPage(jsx: string): string {
       color: var(--accent);
     }
     .htllm-flow-node[data-role="output"] {
-      border-color: var(--good);
-      background: var(--good-soft);
+      border-color: var(--fixed);
+      background: var(--fixed-soft);
     }
     .htllm-flow-node[data-role="output"] .htllm-flow-v {
-      color: var(--good);
+      color: var(--fixed);
     }
     .htllm-flow-arrow {
       display: flex;
@@ -374,10 +399,10 @@ function renderPage(jsx: string): string {
       color: var(--ink-soft);
     }
     .htllm-timeline-step[data-emphasis="true"] .htllm-timeline-marker {
-      background: var(--good);
+      background: var(--fixed);
     }
     .htllm-timeline-step[data-emphasis="true"] .htllm-timeline-body {
-      background: var(--good-soft);
+      background: var(--fixed-soft);
       border-radius: 8px;
       padding: 0.7rem 0.9rem;
     }
@@ -419,7 +444,9 @@ function renderPage(jsx: string): string {
       padding: 0.8rem 1rem;
     }
     .htllm-qa-label {
-      color: var(--accent);
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      color: var(--llm);
       font-weight: 600;
       flex: none;
     }

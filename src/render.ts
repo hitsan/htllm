@@ -5,7 +5,7 @@ export type TextDocument = {
   text: string;
 };
 
-const COMPONENT_CATALOG = `- heading: 節や文書の見出し。フィールド: text
+const COMPONENT_CATALOG = `- heading: 節や文書の見出し。フィールド: text, badge?（章番号や短いラベル。任意）
 - prose: 本文の段落。フィールド: text
 - steps: 順序のある手順・工程。フィールド: items（文字列の配列）
 - callout: 注記・警告・ポイントの強調。フィールド: text
