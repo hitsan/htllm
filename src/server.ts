@@ -8,6 +8,7 @@ function renderPage(jsx: string): string {
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -60,8 +61,8 @@ function renderPage(jsx: string): string {
 
     #root {
       width: 100%;
-      max-width: 700px;
-      padding: 4.5rem 2rem 6rem;
+      max-width: min(92vw, 68rem);
+      padding: 4.5rem clamp(1.2rem, 4vw, 3rem) 6rem;
     }
 
     [data-htllm-root] h2 {
@@ -439,6 +440,14 @@ function renderPage(jsx: string): string {
       font-family: -apple-system, "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
       font-size: 13px;
       color: var(--ink);
+    }
+    @media (max-width: 900px) {
+      body {
+        padding-right: 0;
+      }
+      #htllm-comments-panel {
+        display: none;
+      }
     }
     #htllm-comments-panel:empty::before {
       content: "テキストを選択して質問・指示するとここに表示されます";
