@@ -583,8 +583,6 @@ function renderPage(jsx: string): string {
       right: 0;
       width: 320px;
       height: 100vh;
-      overflow-y: auto;
-      padding: 16px;
       background: var(--surface-sunken);
       border-left: 1px solid var(--border);
       font-family: -apple-system, "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
@@ -592,7 +590,6 @@ function renderPage(jsx: string): string {
       color: var(--ink);
       display: flex;
       flex-direction: column;
-      gap: 16px;
     }
     @media (max-width: 900px) {
       body {
@@ -602,9 +599,13 @@ function renderPage(jsx: string): string {
         display: none;
       }
     }
-    #htllm-theme-toggle {
+    #htllm-panel-header {
       flex: none;
-      align-self: flex-end;
+      display: flex;
+      justify-content: flex-end;
+      padding: 12px 16px 0;
+    }
+    #htllm-theme-toggle {
       background: var(--surface);
       color: var(--ink-soft);
       border: 1px solid var(--border);
@@ -617,11 +618,18 @@ function renderPage(jsx: string): string {
       color: var(--ink);
       border-color: var(--border-strong);
     }
+    #htllm-threads {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
     #htllm-composer {
       flex: none;
       background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
+      border-top: 1px solid var(--border);
       padding: 12px 14px;
     }
     #htllm-composer-quote {
@@ -710,31 +718,26 @@ function renderPage(jsx: string): string {
     }
     .htllm-thread-msg {
       white-space: pre-wrap;
+      max-width: 85%;
+      padding: 6px 10px;
+      border-radius: 12px;
     }
     .htllm-thread-msg-user {
-      color: var(--ink);
-      font-weight: 600;
+      align-self: flex-end;
+      background: var(--accent);
+      color: #ffffff;
+      border-bottom-right-radius: 2px;
     }
     .htllm-thread-msg-assistant {
-      color: var(--ink-soft);
-      border-top: 1px solid var(--border);
-      padding-top: 8px;
+      align-self: flex-start;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--ink);
+      border-bottom-left-radius: 2px;
     }
     .htllm-thread-msg-assistant[data-pending="true"] {
       font-style: italic;
       color: var(--muted);
-    }
-    .htllm-thread-reply-input {
-      width: 100%;
-      box-sizing: border-box;
-      font-family: inherit;
-      font-size: 12px;
-      padding: 6px 8px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      background: var(--bg);
-      color: var(--ink);
-      resize: vertical;
     }
     mark[data-thread-id] {
       background: var(--highlight-bg);
@@ -751,15 +754,17 @@ function renderPage(jsx: string): string {
 <body>
 <div id="root"></div>
 <div id="htllm-comments-panel">
-  <button type="button" id="htllm-theme-toggle" aria-label="ライト/ダークモード切り替え"></button>
+  <div id="htllm-panel-header">
+    <button type="button" id="htllm-theme-toggle" aria-label="ライト/ダークモード切り替え"></button>
+  </div>
+  <div id="htllm-threads"></div>
   <div id="htllm-composer">
     <div id="htllm-composer-quote"></div>
-    <textarea id="htllm-composer-input" placeholder="テキストを選択して質問または指示を入力" rows="3"></textarea>
+    <textarea id="htllm-composer-input" placeholder="テキストを選択するか、続けて入力…" rows="2"></textarea>
     <div id="htllm-composer-buttons">
       <button type="button" id="htllm-composer-submit-btn">送信</button>
     </div>
   </div>
-  <div id="htllm-threads"></div>
 </div>
 <script>
 (function () {
@@ -897,18 +902,8 @@ function renderPage(jsx: string): string {
     });
     card.appendChild(messagesEl);
 
-    var replyInput = document.createElement("textarea");
-    replyInput.className = "htllm-thread-reply-input";
-    replyInput.placeholder = "続けて聞く...";
-    replyInput.rows = 2;
-    replyInput.addEventListener("keydown", function (e) {
-      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-        submitReply(activeThreadId, replyInput);
-      }
-    });
-    card.appendChild(replyInput);
-
     threadsEl.appendChild(card);
+    threadsEl.scrollTop = threadsEl.scrollHeight;
   }
 
   function showThread(threadId) {
@@ -916,6 +911,7 @@ function renderPage(jsx: string): string {
       return;
     }
     activeThreadId = threadId;
+    resetComposer();
     renderThreadPanel();
   }
 
@@ -948,12 +944,12 @@ function renderPage(jsx: string): string {
       });
   }
 
-  function submitReply(threadId, replyInput) {
-    var value = replyInput.value.trim();
+  function submitReply(threadId, value) {
     var thread = threadsCache[threadId];
-    if (value.length === 0 || !thread) {
+    if (!thread) {
       return;
     }
+    input.value = "";
     thread.messages.push({ role: "user", text: value });
     var pendingMsg = { role: "assistant", text: "回答を生成中…", pending: true };
     thread.messages.push(pendingMsg);
@@ -999,9 +995,17 @@ function renderPage(jsx: string): string {
 
   function submit() {
     var value = input.value.trim();
-    if (value.length === 0 || !selectedNodeId) {
+    if (value.length === 0) {
       return;
     }
+    if (selectedNodeId) {
+      submitNewThread(value);
+    } else if (activeThreadId) {
+      submitReply(activeThreadId, value);
+    }
+  }
+
+  function submitNewThread(value) {
     var nodeId = selectedNodeId;
     var start = selectedStart;
     var end = selectedEnd;
@@ -1043,6 +1047,12 @@ function renderPage(jsx: string): string {
 
   submitBtn.addEventListener("click", function () {
     submit();
+  });
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      submit();
+    }
   });
   attachHighlightClickHandlersAfterPaint();
 })();

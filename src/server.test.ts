@@ -79,6 +79,33 @@ describe("createServer", () => {
     expect(body).toContain("prefers-color-scheme: dark");
   });
 
+  it("places the composer after the thread list in the DOM, so it sits at the bottom of the column-flex panel", async () => {
+    const res = await fetch(baseUrl);
+    const body = await res.text();
+    expect(body.indexOf('id="htllm-threads"')).toBeLessThan(body.indexOf('id="htllm-composer"'));
+  });
+
+  it("makes the thread list the scrollable, flexible region of the panel", async () => {
+    const res = await fetch(baseUrl);
+    const body = await res.text();
+    expect(body).toContain("#htllm-threads {");
+    expect(body).toMatch(/#htllm-threads\s*\{[^}]*flex:\s*1/);
+    expect(body).toMatch(/#htllm-threads\s*\{[^}]*overflow-y:\s*auto/);
+  });
+
+  it("anchors the thread list to the bottom so a short conversation sits just above the composer, like a chat app", async () => {
+    const res = await fetch(baseUrl);
+    const body = await res.text();
+    expect(body).toMatch(/#htllm-threads\s*\{[^}]*justify-content:\s*flex-end/);
+  });
+
+  it("pins the composer to the bottom with a visible separator from the thread list", async () => {
+    const res = await fetch(baseUrl);
+    const body = await res.text();
+    expect(body).toMatch(/#htllm-composer\s*\{[^}]*flex:\s*none/);
+    expect(body).toMatch(/#htllm-composer\s*\{[^}]*border-top/);
+  });
+
   it("generates different HTML for different content", async () => {
     const otherJsx = "<h1>Different content</h1>";
     const otherServer = createServer(otherJsx, onCreateThread, onReply, onGetThread, onDeleteThread);
