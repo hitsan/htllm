@@ -39,32 +39,30 @@ describe("renderTextWithHighlights", () => {
 });
 
 describe("createThread", () => {
-  it("nodeId/range/mode/quoteを保持し、messagesは空で新規スレッドを作る", () => {
+  it("nodeId/range/quoteを保持し、messagesは空で新規スレッドを作る", () => {
     const thread = createThread({
       nodeId: "n1",
       range: { start: 0, end: 3 },
-      mode: "question",
       quote: "ABC",
     });
 
     expect(thread.nodeId).toBe("n1");
     expect(thread.range).toEqual({ start: 0, end: 3 });
-    expect(thread.mode).toBe("question");
     expect(thread.quote).toBe("ABC");
     expect(thread.messages).toEqual([]);
     expect(typeof thread.id).toBe("string");
     expect(thread.id.length).toBeGreaterThan(0);
   });
 
-  it("rangeにnullを渡すとrange:nullのスレッドを作る(instructの全体紐付け用)", () => {
-    const thread = createThread({ nodeId: "n1", range: null, mode: "instruct", quote: "ABC" });
+  it("rangeにnullを渡すとrange:nullのスレッドを作る(部品全体紐付け用)", () => {
+    const thread = createThread({ nodeId: "n1", range: null, quote: "ABC" });
 
     expect(thread.range).toBeNull();
   });
 
   it("呼び出すたびに異なるidを発行する", () => {
-    const t1 = createThread({ nodeId: "n1", range: { start: 0, end: 1 }, mode: "question", quote: "A" });
-    const t2 = createThread({ nodeId: "n1", range: { start: 0, end: 1 }, mode: "question", quote: "A" });
+    const t1 = createThread({ nodeId: "n1", range: { start: 0, end: 1 }, quote: "A" });
+    const t2 = createThread({ nodeId: "n1", range: { start: 0, end: 1 }, quote: "A" });
 
     expect(t1.id).not.toBe(t2.id);
   });
@@ -72,7 +70,7 @@ describe("createThread", () => {
 
 describe("appendMessage", () => {
   it("元のスレッドを変更せず、messagesに追記した新しいスレッドを返す", () => {
-    const thread = createThread({ nodeId: "n1", range: { start: 0, end: 1 }, mode: "question", quote: "A" });
+    const thread = createThread({ nodeId: "n1", range: { start: 0, end: 1 }, quote: "A" });
 
     const updated = appendMessage(thread, "user", "これは何？");
 
@@ -81,7 +79,7 @@ describe("appendMessage", () => {
   });
 
   it("複数回追記すると履歴が積み重なる", () => {
-    const thread = createThread({ nodeId: "n1", range: { start: 0, end: 1 }, mode: "question", quote: "A" });
+    const thread = createThread({ nodeId: "n1", range: { start: 0, end: 1 }, quote: "A" });
 
     const step1 = appendMessage(thread, "user", "これは何？");
     const step2 = appendMessage(step1, "assistant", "説明です");
@@ -96,8 +94,8 @@ describe("appendMessage", () => {
 describe("invalidateRangeForNode", () => {
   it("指定ノードに紐づくスレッドのrangeをnullにする", () => {
     const threads: Thread[] = [
-      createThread({ nodeId: "n1", range: { start: 0, end: 1 }, mode: "instruct", quote: "A" }),
-      createThread({ nodeId: "n2", range: { start: 2, end: 3 }, mode: "question", quote: "B" }),
+      createThread({ nodeId: "n1", range: { start: 0, end: 1 }, quote: "A" }),
+      createThread({ nodeId: "n2", range: { start: 2, end: 3 }, quote: "B" }),
     ];
 
     const result = invalidateRangeForNode(threads, "n1");

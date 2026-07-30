@@ -5,7 +5,7 @@ vi.mock("./claude/runTurn.js", () => ({
   runTurn: (...args: unknown[]) => runTurnMock(...args),
 }));
 
-const { renderDocument, editDocument, rewriteFragment, replaceFragment, buildTree, updateNode, answerQuestion, detectIntent } = await import("./render.js");
+const { renderDocument, editDocument, rewriteFragment, replaceFragment, buildTree, respond } = await import("./render.js");
 
 describe("renderDocument", () => {
   beforeEach(() => {
@@ -299,213 +299,125 @@ describe("buildTree", () => {
   });
 });
 
-describe("updateNode", () => {
+describe("respond", () => {
   beforeEach(() => {
     runTurnMock.mockReset();
   });
 
-  it("ノードの現在のフィールドと指示をプロンプトに含める", async () => {
+  it("文章全体・選択部分・部品の現在の中身・メッセージをプロンプトに含める", async () => {
     runTurnMock.mockResolvedValue({
-      result: '{"text":"新しい本文"}',
+      result: "ANSWER\n回答です",
       sessionId: "session-1",
       stopReason: "end_turn",
     });
 
-    await updateNode({ id: "n2", type: "prose", text: "古い本文" }, "もっと短くして");
-
-    const [prompt] = runTurnMock.mock.calls[0];
-    expect(prompt).toContain("古い本文");
-    expect(prompt).toContain("もっと短くして");
-  });
-
-  it("idとtypeを保ち、フィールドだけLLMの返り値(JSON)で差し替えた新ノードを返す", async () => {
-    runTurnMock.mockResolvedValue({
-      result: '{"text":"新しい本文"}',
-      sessionId: "session-1",
-      stopReason: "end_turn",
-    });
-
-    const result = await updateNode({ id: "n2", type: "prose", text: "古い本文" }, "指示");
-
-    expect(result.node).toEqual({ id: "n2", type: "prose", text: "新しい本文" });
-  });
-
-  it("```json コードフェンスで包まれていても中身をパースする", async () => {
-    runTurnMock.mockResolvedValue({
-      result: '```json\n{"text":"新しい本文"}\n```',
-      sessionId: "session-1",
-      stopReason: "end_turn",
-    });
-
-    const result = await updateNode({ id: "n2", type: "prose", text: "古い本文" }, "指示");
-
-    expect(result.node).toEqual({ id: "n2", type: "prose", text: "新しい本文" });
-  });
-
-  it("複数フィールドを持つ部品(card)でも、返り値のフィールドをまとめて差し替える", async () => {
-    runTurnMock.mockResolvedValue({
-      result: '{"title":"新見出し","text":"新本文"}',
-      sessionId: "session-1",
-      stopReason: "end_turn",
-    });
-
-    const result = await updateNode(
-      { id: "c1", type: "card", title: "旧見出し", text: "旧本文" },
-      "見出しと本文を書き換えて",
-    );
-
-    expect(result.node).toEqual({ id: "c1", type: "card", title: "新見出し", text: "新本文" });
-  });
-
-  it("作業ディレクトリ等のメタな言及を禁止する指示を含む", async () => {
-    runTurnMock.mockResolvedValue({
-      result: '{"text":"新しい本文"}',
-      sessionId: "session-1",
-      stopReason: "end_turn",
-    });
-
-    await updateNode({ id: "n2", type: "prose", text: "古い本文" }, "指示");
-
-    const [prompt] = runTurnMock.mock.calls[0];
-    expect(prompt).toContain("無関係な内容は");
-  });
-
-  it("runTurnが返したsessionIdをそのまま返す", async () => {
-    runTurnMock.mockResolvedValue({
-      result: '{"text":"新しい本文"}',
-      sessionId: "session-abc",
-      stopReason: "end_turn",
-    });
-
-    const result = await updateNode({ id: "n2", type: "prose", text: "古い本文" }, "指示");
-
-    expect(result.sessionId).toBe("session-abc");
-  });
-
-  it("resumeSessionIdを渡すとrunTurnにresumeSessionIdとして渡す", async () => {
-    runTurnMock.mockResolvedValue({
-      result: '{"text":"新しい本文"}',
-      sessionId: "session-abc",
-      stopReason: "end_turn",
-    });
-
-    await updateNode({ id: "n2", type: "prose", text: "古い本文" }, "もっと短く", "session-prev");
-
-    const [, options] = runTurnMock.mock.calls[0];
-    expect(options).toEqual({ resumeSessionId: "session-prev" });
-  });
-});
-
-describe("answerQuestion", () => {
-  beforeEach(() => {
-    runTurnMock.mockReset();
-  });
-
-  it("文章全体・選択部分・質問をプロンプトに含める", async () => {
-    runTurnMock.mockResolvedValue({
-      result: "回答です",
-      sessionId: "session-1",
-      stopReason: "end_turn",
-    });
-
-    await answerQuestion("文章全体", "選択部分", "質問文");
+    await respond({ id: "n2", type: "prose", text: "古い本文" }, "文章全体", "選択部分", "質問文");
 
     const [prompt] = runTurnMock.mock.calls[0];
     expect(prompt).toContain("文章全体");
     expect(prompt).toContain("選択部分");
+    expect(prompt).toContain("古い本文");
     expect(prompt).toContain("質問文");
   });
 
-  it("回答とsessionIdを返す", async () => {
+  it("ANSWER応答なら質問への回答としてkind:answerを返す", async () => {
     runTurnMock.mockResolvedValue({
-      result: "回答です",
+      result: "ANSWER\n回答です",
       sessionId: "session-abc",
       stopReason: "end_turn",
     });
 
-    const result = await answerQuestion("文章全体", "選択部分", "質問文");
+    const result = await respond({ id: "n2", type: "prose", text: "本文" }, "文章全体", "選択部分", "質問文");
 
-    expect(result).toEqual({ answer: "回答です", sessionId: "session-abc" });
+    expect(result).toEqual({ kind: "answer", answer: "回答です", sessionId: "session-abc" });
   });
 
-  it("resumeSessionIdを渡すとrunTurnにresumeSessionIdとして渡す", async () => {
+  it("EDIT応答ならidとtypeを保ったままフィールドを差し替えたkind:editを返す", async () => {
     runTurnMock.mockResolvedValue({
-      result: "回答です",
+      result: 'EDIT\n{"text":"新しい本文"}',
       sessionId: "session-abc",
       stopReason: "end_turn",
     });
 
-    await answerQuestion("文章全体", "選択部分", "続けての質問", "session-prev");
+    const result = await respond({ id: "n2", type: "prose", text: "古い本文" }, "文章全体", "選択部分", "指示");
 
-    const [, options] = runTurnMock.mock.calls[0];
-    expect(options).toEqual({ resumeSessionId: "session-prev" });
-  });
-});
-
-describe("detectIntent", () => {
-  beforeEach(() => {
-    runTurnMock.mockReset();
+    expect(result).toEqual({
+      kind: "edit",
+      node: { id: "n2", type: "prose", text: "新しい本文" },
+      sessionId: "session-abc",
+    });
   });
 
-  it("質問文を渡すとquestionを返す", async () => {
+  it("EDIT応答の```json コードフェンスで包まれていても中身をパースする", async () => {
     runTurnMock.mockResolvedValue({
-      result: "question",
+      result: 'EDIT\n```json\n{"text":"新しい本文"}\n```',
       sessionId: "session-1",
       stopReason: "end_turn",
     });
 
-    const intent = await detectIntent("これはどういう意味？");
+    const result = await respond({ id: "n2", type: "prose", text: "古い本文" }, "文章全体", "選択部分", "指示");
 
-    expect(intent).toBe("question");
+    expect(result.kind).toBe("edit");
+    expect(result.kind === "edit" && result.node).toEqual({ id: "n2", type: "prose", text: "新しい本文" });
   });
 
-  it("指示文を渡すとinstructを返す", async () => {
+  it("複数フィールドを持つ部品(card)でも、返り値のフィールドをまとめて差し替える", async () => {
     runTurnMock.mockResolvedValue({
-      result: "instruct",
+      result: 'EDIT\n{"title":"新見出し","text":"新本文"}',
       sessionId: "session-1",
       stopReason: "end_turn",
     });
 
-    const intent = await detectIntent("もっと短くして");
+    const result = await respond(
+      { id: "c1", type: "card", title: "旧見出し", text: "旧本文" },
+      "文章全体",
+      "選択部分",
+      "見出しと本文を書き換えて",
+    );
 
-    expect(intent).toBe("instruct");
+    expect(result.kind === "edit" && result.node).toEqual({
+      id: "c1",
+      type: "card",
+      title: "新見出し",
+      text: "新本文",
+    });
   });
 
-  it("メッセージ内容をプロンプトに含める", async () => {
+  it("ANSWER/EDITの前後の空白・改行を取り除いて判定する", async () => {
     runTurnMock.mockResolvedValue({
-      result: "question",
+      result: "\nANSWER\n回答です\n",
       sessionId: "session-1",
       stopReason: "end_turn",
     });
 
-    await detectIntent("特徴的な入力フレーズ");
+    const result = await respond({ id: "n2", type: "prose", text: "本文" }, "文章全体", "選択部分", "質問文");
 
-    const [prompt] = runTurnMock.mock.calls[0];
-    expect(prompt).toContain("特徴的な入力フレーズ");
+    expect(result).toEqual({ kind: "answer", answer: "回答です", sessionId: "session-1" });
   });
 
   it("作業ディレクトリ等のメタな言及を禁止する指示を含む", async () => {
     runTurnMock.mockResolvedValue({
-      result: "question",
+      result: "ANSWER\n回答です",
       sessionId: "session-1",
       stopReason: "end_turn",
     });
 
-    await detectIntent("これは何？");
+    await respond({ id: "n2", type: "prose", text: "本文" }, "文章全体", "選択部分", "質問文");
 
     const [prompt] = runTurnMock.mock.calls[0];
     expect(prompt).toContain("無関係な内容は");
   });
 
-  it("前後の空白・改行を取り除いて判定する", async () => {
+  it("resumeSessionIdを渡すとrunTurnにresumeSessionIdとして渡す", async () => {
     runTurnMock.mockResolvedValue({
-      result: "\ninstruct\n",
-      sessionId: "session-1",
+      result: "ANSWER\n回答です",
+      sessionId: "session-abc",
       stopReason: "end_turn",
     });
 
-    const intent = await detectIntent("短くして");
+    await respond({ id: "n2", type: "prose", text: "本文" }, "文章全体", "選択部分", "続けての質問", "session-prev");
 
-    expect(intent).toBe("instruct");
+    const [, options] = runTurnMock.mock.calls[0];
+    expect(options).toEqual({ resumeSessionId: "session-prev" });
   });
 });

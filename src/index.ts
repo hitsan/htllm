@@ -1,6 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { createServer } from "./server.js";
-import { buildTree, updateNode, answerQuestion, detectIntent } from "./render.js";
+import { buildTree, respond } from "./render.js";
 import { renderTree, replaceNode, nodeToText, type Node } from "./tree.js";
 import { createThread, appendMessage, invalidateRangeForNode, type Thread } from "./thread.js";
 
@@ -53,25 +53,25 @@ const pendingAnswers = new Map<string, PendingResult | null>();
 
 async function resolveAnswer(thread: Thread, target: Node, message: string): Promise<void> {
   let answer: string;
+  let updatedThread = thread;
   try {
-    if (thread.mode === "question") {
-      const docText = nodes.map(nodeToText).join("\n");
-      const result = await answerQuestion(docText, thread.quote, message);
-      answer = result.answer;
-      thread.sessionId = result.sessionId;
-    } else {
-      const result = await updateNode(target, message);
+    const docText = nodes.map(nodeToText).join("\n");
+    const result = await respond(target, docText, thread.quote, message, thread.sessionId);
+    if (result.kind === "edit") {
       nodes = replaceNode(nodes, thread.nodeId, result.node);
       threads = invalidateRangeForNode(threads, thread.nodeId);
+      updatedThread = threads.find((t) => t.id === thread.id) ?? thread;
       await saveTree(nodes);
       answer = "反映しました";
-      thread.sessionId = result.sessionId;
+    } else {
+      answer = result.answer;
     }
+    updatedThread = { ...updatedThread, sessionId: result.sessionId };
   } catch (err) {
     answer = `エラー: ${err instanceof Error ? err.message : String(err)}`;
   }
 
-  const updated = appendMessage(thread, "assistant", answer);
+  const updated = appendMessage(updatedThread, "assistant", answer);
   threads = threads.map((t) => (t.id === thread.id ? updated : t));
   await saveThreads(threads);
   pendingAnswers.set(thread.id, { answer, jsx: toJsx(nodes, threads) });
@@ -88,10 +88,9 @@ async function onCreateThread(params: {
     throw new Error(`node not found: ${params.nodeId}`);
   }
 
-  const mode = await detectIntent(params.message);
   const quote = nodeToText(target).slice(params.start, params.end);
-  const range = mode === "question" ? { start: params.start, end: params.end } : null;
-  let thread = createThread({ nodeId: params.nodeId, range, mode, quote });
+  const range = { start: params.start, end: params.end };
+  let thread = createThread({ nodeId: params.nodeId, range, quote });
   thread = appendMessage(thread, "user", params.message);
   threads = [...threads, thread];
   await saveThreads(threads);
@@ -135,25 +134,24 @@ async function onReply(threadId: string, message: string): Promise<{ jsx: string
     throw new Error(`node not found: ${thread.nodeId}`);
   }
 
+  const docText = nodes.map(nodeToText).join("\n");
+  const result = await respond(target, docText, thread.quote, message, thread.sessionId);
+
   let answer: string;
-  let sessionId: string;
-  if (thread.mode === "question") {
-    const docText = nodes.map(nodeToText).join("\n");
-    const result = await answerQuestion(docText, thread.quote, message, thread.sessionId);
-    answer = result.answer;
-    sessionId = result.sessionId;
-  } else {
-    const result = await updateNode(target, message, thread.sessionId);
+  let updatedThread = thread;
+  if (result.kind === "edit") {
     nodes = replaceNode(nodes, thread.nodeId, result.node);
     threads = invalidateRangeForNode(threads, thread.nodeId);
+    updatedThread = threads.find((t) => t.id === threadId) ?? thread;
     await saveTree(nodes);
     answer = "反映しました";
-    sessionId = result.sessionId;
+  } else {
+    answer = result.answer;
   }
+  updatedThread = { ...updatedThread, sessionId: result.sessionId };
 
-  let updated = appendMessage(thread, "user", message);
+  let updated = appendMessage(updatedThread, "user", message);
   updated = appendMessage(updated, "assistant", answer);
-  updated.sessionId = sessionId;
   threads = threads.map((t) => (t.id === threadId ? updated : t));
   await saveThreads(threads);
 

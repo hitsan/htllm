@@ -307,7 +307,7 @@ describe("renderTree", () => {
         { id: "h1", type: "heading", text: "見出し" },
         { id: "p1", type: "prose", text: "本文です" },
       ],
-      [{ id: "t1", nodeId: "p1", range: { start: 0, end: 2 }, mode: "question", quote: "本文", messages: [] }],
+      [{ id: "t1", nodeId: "p1", range: { start: 0, end: 2 }, quote: "本文", messages: [] }],
     );
 
     expect(jsx).toBe(

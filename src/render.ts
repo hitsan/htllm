@@ -45,27 +45,57 @@ ${inputText}`;
   return raw.map((n, i) => ({ id: `n${i + 1}`, ...n }) as Node);
 }
 
-export async function updateNode(
+export type RespondResult =
+  | { kind: "answer"; answer: string; sessionId: string }
+  | { kind: "edit"; node: Node; sessionId: string };
+
+export async function respond(
   node: Node,
-  instruction: string,
+  fullText: string,
+  quote: string,
+  message: string,
   resumeSessionId?: string,
-): Promise<{ node: Node; sessionId: string }> {
+): Promise<RespondResult> {
   const { type, ...fields } = node;
-  const prompt = `次の部品(${type})の中身を、以下の指示に従って書き換えてください。
-書き換えた後のフィールドだけをJSONオブジェクトとして返してください（type, idは含めない）。
-説明文やコードブロックの \`\`\` は不要です。
+  const prompt = `次のメッセージが、選択された部分についての「質問」なのか、部品の中身の書き換えを求める「指示」なのかを判断し、
+それぞれ次の形式で返してください。
+
+質問の場合: 1行目に "ANSWER" とだけ書き、2行目以降に日本語で簡潔な回答を書いてください。
+指示の場合: 1行目に "EDIT" とだけ書き、2行目以降に書き換えた後のフィールドだけをJSONオブジェクトとして書いてください（type, idは含めない）。
+
+説明文やコードブロックの \`\`\` は不要です（EDITのJSON部分を除く）。
 ${OUTPUT_DISCIPLINE}
 
-指示:
-${instruction}
+文章全体:
+${fullText}
 
-現在の中身:
-${JSON.stringify(fields)}`;
+選択された部分:
+${quote}
+
+部品(${type})の現在の中身:
+${JSON.stringify(fields)}
+
+メッセージ:
+${message}`;
 
   const { result, sessionId } = await runTurn(prompt, resumeSessionId ? { resumeSessionId } : undefined);
-  const json = extractFencedContent(result) ?? result.trim();
-  const newFields = JSON.parse(json) as Record<string, unknown>;
-  return { node: { ...node, ...newFields } as Node, sessionId };
+  const { kind, body } = splitKindAndBody(result);
+
+  if (kind === "EDIT") {
+    const json = extractFencedContent(body) ?? body;
+    const newFields = JSON.parse(json) as Record<string, unknown>;
+    return { kind: "edit", node: { ...node, ...newFields } as Node, sessionId };
+  }
+  return { kind: "answer", answer: body, sessionId };
+}
+
+function splitKindAndBody(text: string): { kind: string; body: string } {
+  const trimmed = text.trim();
+  const newlineIndex = trimmed.indexOf("\n");
+  if (newlineIndex === -1) {
+    return { kind: trimmed, body: "" };
+  }
+  return { kind: trimmed.slice(0, newlineIndex).trim(), body: trimmed.slice(newlineIndex + 1).trim() };
 }
 
 const DESIGN_PRINCIPLES = `- 自己完結: 外部CDN・Webフォント・外部画像への参照は使わない。すべてインラインCSSで完結させる
@@ -138,40 +168,6 @@ export function replaceFragment(currentText: string, selectedText: string, newFr
     throw new Error("selected text not found in the current document");
   }
   return currentText.replace(selectedText, newFragment);
-}
-
-export async function answerQuestion(
-  fullText: string,
-  selectedText: string,
-  question: string,
-  resumeSessionId?: string,
-): Promise<{ answer: string; sessionId: string }> {
-  const prompt = `次の文章の一部が選択されています。選択された部分に関する質問に、日本語で簡潔に答えてください。
-説明文の前置きは不要で、回答だけを返してください。
-
-文章全体:
-${fullText}
-
-選択された部分:
-${selectedText}
-
-質問:
-${question}`;
-
-  const { result, sessionId } = await runTurn(prompt, resumeSessionId ? { resumeSessionId } : undefined);
-  return { answer: result.trim(), sessionId };
-}
-
-export async function detectIntent(message: string): Promise<"question" | "instruct"> {
-  const prompt = `次のメッセージが、内容についての「質問」なのか、内容の書き換えを求める「指示」なのかを判定してください。
-"question" または "instruct" のどちらか一語だけを返してください。それ以外の文字は一切書かないでください。
-${OUTPUT_DISCIPLINE}
-
-メッセージ:
-${message}`;
-
-  const { result } = await runTurn(prompt);
-  return result.trim() === "instruct" ? "instruct" : "question";
 }
 
 function extractFencedContent(text: string): string | null {
