@@ -1,6 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { createServer } from "./server.js";
-import { buildTree, updateNode, answerQuestion } from "./render.js";
+import { buildTree, updateNode, answerQuestion, detectIntent } from "./render.js";
 import { renderTree, replaceNode, nodeToText, type Node } from "./tree.js";
 import { createThread, appendMessage, invalidateRangeForNode, type Thread } from "./thread.js";
 
@@ -81,7 +81,6 @@ async function onCreateThread(params: {
   nodeId: string;
   start: number;
   end: number;
-  mode: "question" | "instruct";
   message: string;
 }): Promise<{ threadId: string; jsx: string }> {
   const target = nodes.find((n) => n.id === params.nodeId);
@@ -89,9 +88,10 @@ async function onCreateThread(params: {
     throw new Error(`node not found: ${params.nodeId}`);
   }
 
+  const mode = await detectIntent(params.message);
   const quote = nodeToText(target).slice(params.start, params.end);
-  const range = params.mode === "question" ? { start: params.start, end: params.end } : null;
-  let thread = createThread({ nodeId: params.nodeId, range, mode: params.mode, quote });
+  const range = mode === "question" ? { start: params.start, end: params.end } : null;
+  let thread = createThread({ nodeId: params.nodeId, range, mode, quote });
   thread = appendMessage(thread, "user", params.message);
   threads = [...threads, thread];
   await saveThreads(threads);

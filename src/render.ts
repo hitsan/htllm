@@ -162,6 +162,18 @@ ${question}`;
   return { answer: result.trim(), sessionId };
 }
 
+export async function detectIntent(message: string): Promise<"question" | "instruct"> {
+  const prompt = `次のメッセージが、内容についての「質問」なのか、内容の書き換えを求める「指示」なのかを判定してください。
+"question" または "instruct" のどちらか一語だけを返してください。それ以外の文字は一切書かないでください。
+${OUTPUT_DISCIPLINE}
+
+メッセージ:
+${message}`;
+
+  const { result } = await runTurn(prompt);
+  return result.trim() === "instruct" ? "instruct" : "question";
+}
+
 function extractFencedContent(text: string): string | null {
   const fenceMatch = text.match(/```[^\n]*\n([\s\S]*?)\n```/);
   return fenceMatch ? fenceMatch[1] : null;

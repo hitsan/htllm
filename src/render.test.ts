@@ -5,7 +5,7 @@ vi.mock("./claude/runTurn.js", () => ({
   runTurn: (...args: unknown[]) => runTurnMock(...args),
 }));
 
-const { renderDocument, editDocument, rewriteFragment, replaceFragment, buildTree, updateNode, answerQuestion } = await import("./render.js");
+const { renderDocument, editDocument, rewriteFragment, replaceFragment, buildTree, updateNode, answerQuestion, detectIntent } = await import("./render.js");
 
 describe("renderDocument", () => {
   beforeEach(() => {
@@ -439,5 +439,73 @@ describe("answerQuestion", () => {
 
     const [, options] = runTurnMock.mock.calls[0];
     expect(options).toEqual({ resumeSessionId: "session-prev" });
+  });
+});
+
+describe("detectIntent", () => {
+  beforeEach(() => {
+    runTurnMock.mockReset();
+  });
+
+  it("質問文を渡すとquestionを返す", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "question",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const intent = await detectIntent("これはどういう意味？");
+
+    expect(intent).toBe("question");
+  });
+
+  it("指示文を渡すとinstructを返す", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "instruct",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const intent = await detectIntent("もっと短くして");
+
+    expect(intent).toBe("instruct");
+  });
+
+  it("メッセージ内容をプロンプトに含める", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "question",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    await detectIntent("特徴的な入力フレーズ");
+
+    const [prompt] = runTurnMock.mock.calls[0];
+    expect(prompt).toContain("特徴的な入力フレーズ");
+  });
+
+  it("作業ディレクトリ等のメタな言及を禁止する指示を含む", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "question",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    await detectIntent("これは何？");
+
+    const [prompt] = runTurnMock.mock.calls[0];
+    expect(prompt).toContain("無関係な内容は");
+  });
+
+  it("前後の空白・改行を取り除いて判定する", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "\ninstruct\n",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const intent = await detectIntent("短くして");
+
+    expect(intent).toBe("instruct");
   });
 });

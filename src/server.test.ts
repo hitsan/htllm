@@ -125,7 +125,7 @@ describe("POST /api/threads", () => {
     const res = await fetch(`${baseUrl}/api/threads`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nodeId: "n1", start: 0, end: 3, mode: "question", message: "これは？" }),
+      body: JSON.stringify({ nodeId: "n1", start: 0, end: 3, message: "これは？" }),
     });
 
     expect(res.status).toBe(200);
@@ -137,14 +137,13 @@ describe("POST /api/threads", () => {
     await fetch(`${baseUrl}/api/threads`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nodeId: "n1", start: 0, end: 3, mode: "question", message: "これは？" }),
+      body: JSON.stringify({ nodeId: "n1", start: 0, end: 3, message: "これは？" }),
     });
 
     expect(onCreateThread).toHaveBeenCalledWith({
       nodeId: "n1",
       start: 0,
       end: 3,
-      mode: "question",
       message: "これは？",
     });
   });
@@ -155,7 +154,7 @@ describe("POST /api/threads", () => {
     const res = await fetch(`${baseUrl}/api/threads`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nodeId: "n1", start: 0, end: 3, mode: "instruct", message: "短くして" }),
+      body: JSON.stringify({ nodeId: "n1", start: 0, end: 3, message: "短くして" }),
     });
     const body = await res.json();
 
@@ -168,7 +167,7 @@ describe("POST /api/threads", () => {
     await fetch(`${baseUrl}/api/threads`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nodeId: "n1", start: 0, end: 3, mode: "question", message: "これは？" }),
+      body: JSON.stringify({ nodeId: "n1", start: 0, end: 3, message: "これは？" }),
     });
 
     const res = await fetch(baseUrl);
@@ -183,7 +182,7 @@ describe("POST /api/threads", () => {
     const res = await fetch(`${baseUrl}/api/threads`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nodeId: "n1", start: 0, end: 3, mode: "question", message: "これは？" }),
+      body: JSON.stringify({ nodeId: "n1", start: 0, end: 3, message: "これは？" }),
     });
     const body = await res.json();
 

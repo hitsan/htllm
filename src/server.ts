@@ -4,7 +4,6 @@ export type CreateThreadHandler = (params: {
   nodeId: string;
   start: number;
   end: number;
-  mode: "question" | "instruct";
   message: string;
 }) => Promise<{ threadId: string; jsx: string }>;
 export type ReplyThreadHandler = (threadId: string, message: string) => Promise<{ jsx: string; answer: string }>;
@@ -757,8 +756,7 @@ function renderPage(jsx: string): string {
     <div id="htllm-composer-quote"></div>
     <textarea id="htllm-composer-input" placeholder="テキストを選択して質問または指示を入力" rows="3"></textarea>
     <div id="htllm-composer-buttons">
-      <button type="button" id="htllm-composer-question-btn">質問</button>
-      <button type="button" id="htllm-composer-instruct-btn">指示</button>
+      <button type="button" id="htllm-composer-submit-btn">送信</button>
     </div>
   </div>
   <div id="htllm-threads"></div>
@@ -768,8 +766,7 @@ function renderPage(jsx: string): string {
   var panel = document.getElementById("htllm-comments-panel");
   var quoteEl = document.getElementById("htllm-composer-quote");
   var input = document.getElementById("htllm-composer-input");
-  var questionBtn = document.getElementById("htllm-composer-question-btn");
-  var instructBtn = document.getElementById("htllm-composer-instruct-btn");
+  var submitBtn = document.getElementById("htllm-composer-submit-btn");
   var threadsEl = document.getElementById("htllm-threads");
   var themeToggle = document.getElementById("htllm-theme-toggle");
 
@@ -1000,7 +997,7 @@ function renderPage(jsx: string): string {
       });
   }
 
-  function submit(mode) {
+  function submit() {
     var value = input.value.trim();
     if (value.length === 0 || !selectedNodeId) {
       return;
@@ -1014,7 +1011,7 @@ function renderPage(jsx: string): string {
     fetch("/api/threads", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nodeId: nodeId, start: start, end: end, mode: mode, message: value }),
+      body: JSON.stringify({ nodeId: nodeId, start: start, end: end, message: value }),
     })
       .then(function (res) {
         return res.json().then(function (data) {
@@ -1044,11 +1041,8 @@ function renderPage(jsx: string): string {
       });
   }
 
-  questionBtn.addEventListener("click", function () {
-    submit("question");
-  });
-  instructBtn.addEventListener("click", function () {
-    submit("instruct");
+  submitBtn.addEventListener("click", function () {
+    submit();
   });
   attachHighlightClickHandlersAfterPaint();
 })();
@@ -1074,9 +1068,9 @@ export function createServer(
         body += chunk;
       });
       req.on("end", async () => {
-        const { nodeId, start, end, mode, message } = JSON.parse(body);
+        const { nodeId, start, end, message } = JSON.parse(body);
         try {
-          const thread = await onCreateThread({ nodeId, start, end, mode, message });
+          const thread = await onCreateThread({ nodeId, start, end, message });
           currentJsx = thread.jsx;
 
           res.writeHead(200, { "Content-Type": "application/json" });
