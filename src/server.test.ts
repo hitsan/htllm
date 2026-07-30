@@ -93,10 +93,23 @@ describe("createServer", () => {
     expect(body).toMatch(/#htllm-threads\s*\{[^}]*overflow-y:\s*auto/);
   });
 
-  it("anchors the thread list to the bottom so a short conversation sits just above the composer, like a chat app", async () => {
+  it("gives the thread list min-height: 0 so a long conversation scrolls inside it instead of growing the flex item past the panel", async () => {
     const res = await fetch(baseUrl);
     const body = await res.text();
-    expect(body).toMatch(/#htllm-threads\s*\{[^}]*justify-content:\s*flex-end/);
+    expect(body).toMatch(/#htllm-threads\s*\{[^}]*min-height:\s*0/);
+  });
+
+  it("clips panel overflow so a long conversation can never push the fixed panel past the viewport", async () => {
+    const res = await fetch(baseUrl);
+    const body = await res.text();
+    expect(body).toMatch(/#htllm-comments-panel\s*\{[^}]*overflow:\s*hidden/);
+  });
+
+  it("anchors a short conversation to the bottom via auto margin, not justify-content (which breaks scrolling on overflow in flex columns)", async () => {
+    const res = await fetch(baseUrl);
+    const body = await res.text();
+    expect(body).not.toMatch(/#htllm-threads\s*\{[^}]*justify-content:\s*flex-end/);
+    expect(body).toMatch(/\.htllm-thread-card\s*\{[^}]*margin-top:\s*auto/);
   });
 
   it("pins the composer to the bottom with a visible separator from the thread list", async () => {

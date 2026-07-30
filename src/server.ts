@@ -583,6 +583,7 @@ function renderPage(jsx: string): string {
       right: 0;
       width: 320px;
       height: 100vh;
+      overflow: hidden;
       background: var(--surface-sunken);
       border-left: 1px solid var(--border);
       font-family: -apple-system, "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
@@ -620,11 +621,11 @@ function renderPage(jsx: string): string {
     }
     #htllm-threads {
       flex: 1;
+      min-height: 0;
       overflow-y: auto;
       padding: 16px;
       display: flex;
       flex-direction: column;
-      justify-content: flex-end;
     }
     #htllm-composer {
       flex: none;
@@ -682,7 +683,7 @@ function renderPage(jsx: string): string {
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 12px 14px;
-      margin-bottom: 12px;
+      margin-top: auto;
       position: relative;
     }
     .htllm-comment-quote {
@@ -1012,6 +1013,16 @@ function renderPage(jsx: string): string {
     var quote = selectedQuote;
     resetComposer();
 
+    var tempId = "pending-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+    threadsCache[tempId] = {
+      quote: quote,
+      messages: [
+        { role: "user", text: value },
+        { role: "assistant", text: "回答を生成中…", pending: true },
+      ],
+    };
+    showThread(tempId);
+
     fetch("/api/threads", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1019,27 +1030,24 @@ function renderPage(jsx: string): string {
     })
       .then(function (res) {
         return res.json().then(function (data) {
+          var thread = threadsCache[tempId];
+          delete threadsCache[tempId];
           if (res.ok) {
-            threadsCache[data.threadId] = {
-              quote: quote,
-              messages: [
-                { role: "user", text: value },
-                { role: "assistant", text: "回答を生成中…", pending: true },
-              ],
-            };
-            showThread(data.threadId);
+            threadsCache[data.threadId] = thread;
+            if (activeThreadId === tempId) {
+              activeThreadId = data.threadId;
+              renderThreadPanel();
+            }
             rerender(data.jsx);
             pollThread(data.threadId);
           } else {
+            thread.messages[thread.messages.length - 1] = { role: "assistant", text: "エラー: " + data.error };
             var errId = "error-" + Date.now();
-            threadsCache[errId] = {
-              quote: quote,
-              messages: [
-                { role: "user", text: value },
-                { role: "assistant", text: "エラー: " + data.error },
-              ],
-            };
-            showThread(errId);
+            threadsCache[errId] = thread;
+            if (activeThreadId === tempId) {
+              activeThreadId = errId;
+              renderThreadPanel();
+            }
           }
         });
       });
