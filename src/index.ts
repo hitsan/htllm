@@ -1,7 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { createServer } from "./server.js";
 import { buildTree, respond } from "./render.js";
-import { renderTree, replaceNode, nodeToText, type Node } from "./tree.js";
+import { renderTree, replaceNode, reconcileIds, nodeToText, type Node } from "./tree.js";
 import { createThread, appendMessage, invalidateRangeForNode, type Thread } from "./thread.js";
 
 const DOC_PATH = "doc.json";
@@ -40,13 +40,21 @@ window.__htllmRoot.render(${renderTree(nodes, threads)});
 `;
 }
 
+const inputPath = process.argv[2];
 let nodes = await loadTree();
-if (nodes.length === 0) {
+let threads = await loadThreads();
+
+if (inputPath) {
+  const text = await readFile(inputPath, "utf-8");
+  nodes = reconcileIds(nodes, await buildTree(text));
+  threads = threads.filter((t) => nodes.some((n) => n.id === t.nodeId));
+  await saveTree(nodes);
+  await saveThreads(threads);
+} else if (nodes.length === 0) {
   const initial = "htllmへようこそ。これはファイルに保存された部品ツリーから表示されています。テキストを選択すると、その部品だけを指示や質問で操作できます。";
   nodes = await buildTree(initial);
   await saveTree(nodes);
 }
-let threads = await loadThreads();
 
 type PendingResult = { answer: string; jsx: string };
 const pendingAnswers = new Map<string, PendingResult | null>();
