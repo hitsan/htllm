@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { runTurn } from "./claude/runTurn.js";
 import type { Node } from "./tree.js";
 
@@ -42,7 +43,7 @@ ${inputText}`;
   const { result } = await runTurn(prompt);
   const json = extractFencedContent(result) ?? result.trim();
   const raw = JSON.parse(json) as Array<{ type: string } & Record<string, unknown>>;
-  return raw.map((n, i) => ({ id: `n${i + 1}`, ...n }) as Node);
+  return raw.map((n) => ({ id: randomUUID(), ...n }) as Node);
 }
 
 export type RespondResult =

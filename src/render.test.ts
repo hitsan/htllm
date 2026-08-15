@@ -226,10 +226,25 @@ describe("buildTree", () => {
 
     const nodes = await buildTree("何かの入力テキスト");
 
-    expect(nodes).toEqual([
-      { id: "n1", type: "heading", text: "タイトル" },
-      { id: "n2", type: "prose", text: "本文" },
+    expect(nodes.map(({ id, ...rest }) => rest)).toEqual([
+      { type: "heading", text: "タイトル" },
+      { type: "prose", text: "本文" },
     ]);
+    expect(new Set(nodes.map((n) => n.id)).size).toBe(2);
+  });
+
+  it("別々のbuildTree呼び出しでidが衝突しない", async () => {
+    runTurnMock.mockResolvedValue({
+      result: '[{"type":"heading","text":"タイトル"},{"type":"prose","text":"本文"}]',
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const first = await buildTree("1回目の入力");
+    const second = await buildTree("2回目の入力");
+
+    const ids = [...first, ...second].map((n) => n.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it("```json コードフェンスで包まれていても中身をパースする", async () => {
@@ -241,7 +256,7 @@ describe("buildTree", () => {
 
     const nodes = await buildTree("入力");
 
-    expect(nodes).toEqual([{ id: "n1", type: "prose", text: "本文" }]);
+    expect(nodes.map(({ id, ...rest }) => rest)).toEqual([{ type: "prose", text: "本文" }]);
   });
 
   it("入力テキストと利用可能な部品名をプロンプトに含める", async () => {
@@ -282,7 +297,9 @@ describe("buildTree", () => {
 
     const nodes = await buildTree("手順を含む入力テキスト");
 
-    expect(nodes).toEqual([{ id: "n1", type: "steps", items: ["準備する", "実行する"] }]);
+    expect(nodes.map(({ id, ...rest }) => rest)).toEqual([
+      { type: "steps", items: ["準備する", "実行する"] },
+    ]);
   });
 
   it("作業ディレクトリ等のメタな言及を禁止する指示を含む", async () => {
