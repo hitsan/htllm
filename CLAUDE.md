@@ -24,7 +24,7 @@ Claudeの計画・成果物をわかりやすく表現して正しく理解す�
 
 ## 技術方針
 - 動的ページ生成: React。ただしビルドレス（CDN経由のReact + その場トランスパイル）で、生成のたびにbundlerを挟まない。
-- Claude Code連携（後回し、最初のスコープ外）: zellij常駐 + `zellij action write-chars`でメッセージ送信、`~/.claude/projects/<encoded-cwd>/<session-id>.jsonl`をtailして`stop_reason: "end_turn"`でターン完了検知。Agent SDKは不採用。
+- Claude Code連携: headlessモード（`claude -p --output-format stream-json`）を`claude/runTurn.ts`からspawnする。`type: "result"`の行からresultとsession_idを取り出し、`--resume`でセッションを継続する。zellij常駐案とAgent SDKは不採用。
 
 ## スレッド応答の実装ルール
 - スレッドへの返信は毎回、`render.ts`の`respond()`を1回だけ呼び出して処理する。
