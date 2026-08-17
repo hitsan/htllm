@@ -6,15 +6,16 @@ description: Claudeが説明する内容（構造化データ、データの変�
 # htllm
 
 htllmは、説明したい内容をテキストで渡すと、部品カタログから構成された
-Webページに変換して配信するサーバー。ページ上のテキストを選択すると、
-その部品に対して質問や書き換え指示ができる。
+Webページに変換して配信するサーバー。ページ下部のチャットに文字を打つと、
+どの部品についての発言かが推測され、質問なら回答が返り、指示ならその部品が
+書き換わる。
 
 ## 仕組み
 
 ```
 テキスト → buildTree(LLM) → doc.json (Node[]) → renderTree → JSX → ブラウザ
                                   ↑                              ↓
-                              respond(LLM) ←──── スレッド(選択範囲への質問/指示)
+                              respond(LLM) ←──── スレッド(チャットの質問/指示)
 ```
 
 Claudeが書くのは**テキストだけ**。JSXは`buildTree`が選んだ部品から
@@ -67,7 +68,7 @@ headless Chromiumでの自動スクリーンショットは、このNix環境で
 2. `src/tree.ts`の`renderNode`に描画、`nodeToText`に表示テキスト化を追加
 3. `src/render.ts`の`COMPONENT_CATALOG`に説明を1行追加（buildTreeへの指示）
 
-`nodeToText`はスレッドの選択範囲とid引き継ぎの両方に使われるので、
+`nodeToText`は再生成時のid引き継ぎ（`reconcileIds`）に使われるので、
 必ず一緒に実装する。
 
 ## デザイン原則
