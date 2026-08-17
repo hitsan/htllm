@@ -116,7 +116,21 @@ describe("createServer", () => {
     const res = await fetch(baseUrl);
     const body = await res.text();
     expect(body).not.toMatch(/#htllm-threads\s*\{[^}]*justify-content:\s*flex-end/);
-    expect(body).toMatch(/\.htllm-thread-card\s*\{[^}]*margin-top:\s*auto/);
+    expect(body).toMatch(/\.htllm-thread-messages\s*\{[^}]*margin-top:\s*auto/);
+  });
+
+  it("gives messages the full panel width instead of side-aligned bubbles", async () => {
+    const res = await fetch(baseUrl);
+    const body = await res.text();
+    expect(body).not.toMatch(/\.htllm-thread-msg-user\s*\{[^}]*align-self/);
+    expect(body).not.toMatch(/\.htllm-thread-msg\s*\{[^}]*max-width/);
+  });
+
+  it("distinguishes the speaker by background alone, without a wrapping thread card", async () => {
+    const res = await fetch(baseUrl);
+    const body = await res.text();
+    expect(body).toMatch(/\.htllm-thread-msg-user\s*\{[^}]*background/);
+    expect(body).not.toContain(".htllm-thread-card");
   });
 
   it("pins the composer to the bottom with a visible separator from the thread list", async () => {
