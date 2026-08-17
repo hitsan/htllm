@@ -8,7 +8,6 @@ export type Thread = {
   id: string;
   nodeId: string;
   range: { start: number; end: number } | null;
-  mode: "question" | "instruct";
   quote: string;
   sessionId?: string;
   messages: ThreadMessage[];
@@ -17,14 +16,12 @@ export type Thread = {
 export function createThread(params: {
   nodeId: string;
   range: { start: number; end: number } | null;
-  mode: "question" | "instruct";
   quote: string;
 }): Thread {
   return {
     id: randomUUID(),
     nodeId: params.nodeId,
     range: params.range,
-    mode: params.mode,
     quote: params.quote,
     messages: [],
   };

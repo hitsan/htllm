@@ -151,6 +151,21 @@ export function renderTree(nodes: Node[], threads: Thread[] = []): string {
   return `<div data-htllm-root>${nodes.map((n) => renderNode(n, rangesForNode(threads, n.id))).join("")}</div>`;
 }
 
+export function reconcileIds(oldNodes: Node[], newNodes: Node[]): Node[] {
+  const idsByText = new Map<string, string[]>();
+  for (const node of oldNodes) {
+    const key = nodeToText(node);
+    const ids = idsByText.get(key) ?? [];
+    ids.push(node.id);
+    idsByText.set(key, ids);
+  }
+
+  return newNodes.map((node) => {
+    const inherited = idsByText.get(nodeToText(node))?.shift();
+    return inherited !== undefined ? { ...node, id: inherited } : node;
+  });
+}
+
 export function replaceNode(nodes: Node[], id: string, newNode: Node): Node[] {
   if (!nodes.some((n) => n.id === id)) {
     throw new Error(`node not found: ${id}`);

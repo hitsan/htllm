@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderNode, renderTree, replaceNode, nodeToText, type Node } from "./tree.js";
+import { renderNode, renderTree, replaceNode, reconcileIds, nodeToText, type Node } from "./tree.js";
 
 describe("renderNode", () => {
   it("proseノードをdata-node-id付きの段落JSXにする", () => {
@@ -307,7 +307,7 @@ describe("renderTree", () => {
         { id: "h1", type: "heading", text: "見出し" },
         { id: "p1", type: "prose", text: "本文です" },
       ],
-      [{ id: "t1", nodeId: "p1", range: { start: 0, end: 2 }, mode: "question", quote: "本文", messages: [] }],
+      [{ id: "t1", nodeId: "p1", range: { start: 0, end: 2 }, quote: "本文", messages: [] }],
     );
 
     expect(jsx).toBe(
@@ -474,5 +474,57 @@ describe("replaceNode", () => {
     expect(() =>
       replaceNode([], "missing", { id: "missing", type: "prose", text: "x" }),
     ).toThrow();
+  });
+});
+
+describe("reconcileIds", () => {
+  it("表示テキストが一致するNodeは旧idを引き継ぐ", () => {
+    const oldNodes: Node[] = [
+      { id: "old-1", type: "heading", text: "A" },
+      { id: "old-2", type: "prose", text: "B" },
+    ];
+    const newNodes: Node[] = [
+      { id: "new-1", type: "heading", text: "A" },
+      { id: "new-2", type: "prose", text: "B" },
+    ];
+
+    expect(reconcileIds(oldNodes, newNodes).map((n) => n.id)).toEqual(["old-1", "old-2"]);
+  });
+
+  it("表示テキストが変わったNodeは新しいidのまま", () => {
+    const oldNodes: Node[] = [{ id: "old-1", type: "prose", text: "変更前" }];
+    const newNodes: Node[] = [{ id: "new-1", type: "prose", text: "変更後" }];
+
+    expect(reconcileIds(oldNodes, newNodes).map((n) => n.id)).toEqual(["new-1"]);
+  });
+
+  it("順番が入れ替わっても内容で対応付ける", () => {
+    const oldNodes: Node[] = [
+      { id: "old-1", type: "heading", text: "A" },
+      { id: "old-2", type: "prose", text: "B" },
+    ];
+    const newNodes: Node[] = [
+      { id: "new-1", type: "prose", text: "B" },
+      { id: "new-2", type: "heading", text: "A" },
+    ];
+
+    expect(reconcileIds(oldNodes, newNodes).map((n) => n.id)).toEqual(["old-2", "old-1"]);
+  });
+
+  it("同じ表示テキストのNodeが複数あっても旧idを重複して割り当てない", () => {
+    const oldNodes: Node[] = [
+      { id: "old-1", type: "prose", text: "同じ" },
+      { id: "old-2", type: "prose", text: "同じ" },
+    ];
+    const newNodes: Node[] = [
+      { id: "new-1", type: "prose", text: "同じ" },
+      { id: "new-2", type: "prose", text: "同じ" },
+      { id: "new-3", type: "prose", text: "同じ" },
+    ];
+
+    const ids = reconcileIds(oldNodes, newNodes).map((n) => n.id);
+
+    expect(ids).toEqual(["old-1", "old-2", "new-3"]);
+    expect(new Set(ids).size).toBe(3);
   });
 });
