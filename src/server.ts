@@ -607,10 +607,6 @@ function renderPage(jsx: string): string {
       gap: 8px;
       padding: 12px 16px 0;
     }
-    #htllm-panel-actions {
-      display: flex;
-      gap: 6px;
-    }
     .htllm-panel-btn {
       background: var(--surface);
       color: var(--ink-soft);
@@ -773,10 +769,7 @@ function renderPage(jsx: string): string {
 <div id="root"></div>
 <div id="htllm-comments-panel">
   <div id="htllm-panel-header">
-    <div id="htllm-panel-actions">
-      <button type="button" id="htllm-panel-back" class="htllm-panel-btn" hidden>← 一覧</button>
-      <button type="button" id="htllm-panel-new" class="htllm-panel-btn">＋ 新しいスレッド</button>
-    </div>
+    <button type="button" id="htllm-panel-back" class="htllm-panel-btn" hidden>← 一覧</button>
     <button type="button" id="htllm-theme-toggle" aria-label="ライト/ダークモード切り替え"></button>
   </div>
   <div id="htllm-threads"></div>
@@ -795,7 +788,6 @@ function renderPage(jsx: string): string {
   var threadsEl = document.getElementById("htllm-threads");
   var themeToggle = document.getElementById("htllm-theme-toggle");
   var backBtn = document.getElementById("htllm-panel-back");
-  var newBtn = document.getElementById("htllm-panel-new");
 
   function applyTheme(theme) {
     document.documentElement.setAttribute("data-theme", theme);
@@ -1053,16 +1045,10 @@ function renderPage(jsx: string): string {
       });
   }
 
-  function showList() {
+  backBtn.addEventListener("click", function () {
     activeThreadId = null;
     resetComposer();
     renderThreadPanel();
-  }
-
-  backBtn.addEventListener("click", showList);
-  newBtn.addEventListener("click", function () {
-    showList();
-    input.focus();
   });
 
   fetch("/api/threads")
