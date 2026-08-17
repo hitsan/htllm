@@ -46,12 +46,11 @@ let threads = await loadThreads();
 
 if (inputPath) {
   const text = await readFile(inputPath, "utf-8");
+  // 再生成でスレッドは消さない。消去は削除ボタンでの明示操作だけに一本化する
   nodes = reconcileIds(nodes, await buildTree(text));
-  threads = threads.filter((t) => nodes.some((n) => n.id === t.nodeId));
   await saveTree(nodes);
-  await saveThreads(threads);
 } else if (nodes.length === 0) {
-  const initial = "htllmへようこそ。これはファイルに保存された部品ツリーから表示されています。テキストを選択すると、その部品だけを指示や質問で操作できます。";
+  const initial = "htllmへようこそ。これはファイルに保存された部品ツリーから表示されています。右のチャットに質問や指示を打つと、どの部品についての発言かが推測されます。";
   nodes = await buildTree(initial);
   await saveTree(nodes);
 }
@@ -119,6 +118,10 @@ async function onGetThread(
   return { pending: false, answer: result.answer, jsx: result.jsx };
 }
 
+async function onListThreads(): Promise<Omit<Thread, "sessionId">[]> {
+  return threads.map(({ sessionId, ...rest }) => rest);
+}
+
 async function onDeleteThread(threadId: string): Promise<{ jsx: string } | null> {
   if (!threads.some((t) => t.id === threadId)) {
     return null;
@@ -148,7 +151,7 @@ async function onReply(threadId: string, message: string): Promise<{ jsx: string
 const jsx = toJsx(nodes);
 
 const port = 3000;
-const server = createServer(jsx, onCreateThread, onReply, onGetThread, onDeleteThread);
+const server = createServer(jsx, onCreateThread, onReply, onGetThread, onDeleteThread, onListThreads);
 server.listen(port, () => {
   console.log(`Listening on http://localhost:${port}`);
 });

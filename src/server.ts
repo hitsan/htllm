@@ -1,5 +1,7 @@
 import { createServer as createHttpServer } from "node:http";
+import type { Thread } from "./thread.js";
 
+export type ListThreadsHandler = () => Promise<Omit<Thread, "sessionId">[]>;
 export type CreateThreadHandler = (params: {
   message: string;
 }) => Promise<{ threadId: string; jsx: string }>;
@@ -600,8 +602,28 @@ function renderPage(jsx: string): string {
     #htllm-panel-header {
       flex: none;
       display: flex;
-      justify-content: flex-end;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
       padding: 12px 16px 0;
+    }
+    .htllm-panel-btn {
+      background: var(--surface);
+      color: var(--ink-soft);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 4px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .htllm-panel-btn:hover {
+      color: var(--ink);
+      border-color: var(--border-strong);
+    }
+    .htllm-panel-btn[hidden] {
+      visibility: hidden;
+      display: block;
     }
     #htllm-theme-toggle {
       background: var(--surface);
@@ -629,15 +651,6 @@ function renderPage(jsx: string): string {
       background: var(--surface);
       border-top: 1px solid var(--border);
       padding: 12px 14px;
-    }
-    #htllm-composer-quote {
-      display: none;
-      font-size: 12px;
-      color: var(--ink-soft);
-      border-left: 2px solid var(--accent);
-      padding-left: 8px;
-      margin-bottom: 8px;
-      white-space: pre-wrap;
     }
     #htllm-composer-input {
       width: 100%;
@@ -671,9 +684,31 @@ function renderPage(jsx: string): string {
     #htllm-composer-buttons button:hover {
       filter: brightness(1.08);
     }
-    #htllm-threads:empty::before {
-      content: "テキストを選択して質問・指示するか、ハイライトをクリックするとここにスレッドが表示されます";
+    .htllm-empty-hint {
       color: var(--ink-soft);
+      line-height: 1.7;
+    }
+    .htllm-thread-item {
+      position: relative;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 52px 10px 12px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      flex: none;
+    }
+    .htllm-thread-item:hover {
+      border-color: var(--border-strong);
+    }
+    .htllm-thread-item-title {
+      color: var(--ink);
+      font-weight: 600;
+      line-height: 1.5;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
     }
     .htllm-thread-card {
       background: var(--surface);
@@ -683,19 +718,10 @@ function renderPage(jsx: string): string {
       margin-top: auto;
       position: relative;
     }
-    .htllm-comment-quote {
-      font-size: 12px;
-      color: var(--ink-soft);
-      border-left: 2px solid var(--accent);
-      padding-left: 8px;
-      padding-right: 48px;
-      margin-bottom: 8px;
-      white-space: pre-wrap;
-    }
     .htllm-thread-delete {
       position: absolute;
-      top: 12px;
-      right: 14px;
+      top: 10px;
+      right: 12px;
       background: none;
       border: 1px solid var(--border-strong);
       border-radius: 999px;
@@ -737,22 +763,13 @@ function renderPage(jsx: string): string {
       font-style: italic;
       color: var(--muted);
     }
-    mark[data-thread-id] {
-      background: var(--highlight-bg);
-      color: var(--highlight-ink);
-      border-radius: 3px;
-      padding: 0 2px;
-      cursor: pointer;
-    }
-    mark[data-thread-id]:hover {
-      filter: brightness(0.95);
-    }
   </style>
 </head>
 <body>
 <div id="root"></div>
 <div id="htllm-comments-panel">
   <div id="htllm-panel-header">
+    <button type="button" id="htllm-panel-back" class="htllm-panel-btn" hidden>← 一覧</button>
     <button type="button" id="htllm-theme-toggle" aria-label="ライト/ダークモード切り替え"></button>
   </div>
   <div id="htllm-threads"></div>
@@ -770,6 +787,7 @@ function renderPage(jsx: string): string {
   var submitBtn = document.getElementById("htllm-composer-submit-btn");
   var threadsEl = document.getElementById("htllm-threads");
   var themeToggle = document.getElementById("htllm-theme-toggle");
+  var backBtn = document.getElementById("htllm-panel-back");
 
   function applyTheme(theme) {
     document.documentElement.setAttribute("data-theme", theme);
@@ -798,10 +816,58 @@ function renderPage(jsx: string): string {
     (0, eval)(code);
   }
 
+  function threadTitle(thread) {
+    for (var i = 0; i < thread.messages.length; i++) {
+      if (thread.messages[i].role === "user") {
+        return thread.messages[i].text;
+      }
+    }
+    return "(空のスレッド)";
+  }
+
+  function renderThreadList() {
+    var ids = Object.keys(threadsCache).reverse();
+    if (ids.length === 0) {
+      var hint = document.createElement("div");
+      hint.className = "htllm-empty-hint";
+      hint.textContent = "まだスレッドがありません。下の入力欄にメッセージを送ると新しいスレッドが始まります";
+      threadsEl.appendChild(hint);
+      return;
+    }
+
+    ids.forEach(function (id) {
+      var item = document.createElement("div");
+      item.className = "htllm-thread-item";
+
+      var title = document.createElement("div");
+      title.className = "htllm-thread-item-title";
+      title.textContent = threadTitle(threadsCache[id]);
+      item.appendChild(title);
+
+      var del = document.createElement("button");
+      del.type = "button";
+      del.className = "htllm-thread-delete";
+      del.textContent = "削除";
+      del.addEventListener("click", function (e) {
+        e.stopPropagation();
+        deleteThread(id);
+      });
+      item.appendChild(del);
+
+      item.addEventListener("click", function () {
+        showThread(id);
+      });
+      threadsEl.appendChild(item);
+    });
+  }
+
   function renderThreadPanel() {
     threadsEl.innerHTML = "";
     var thread = activeThreadId ? threadsCache[activeThreadId] : null;
+    backBtn.hidden = !thread;
+    input.placeholder = thread ? "このスレッドに返信…" : "送信すると新しいスレッドが始まります…";
     if (!thread) {
+      renderThreadList();
       return;
     }
 
@@ -915,8 +981,8 @@ function renderPage(jsx: string): string {
           delete threadsCache[threadId];
           if (activeThreadId === threadId) {
             activeThreadId = null;
-            renderThreadPanel();
           }
+          renderThreadPanel();
           rerender(data.jsx);
         });
       });
@@ -939,6 +1005,8 @@ function renderPage(jsx: string): string {
 
     var tempId = "pending-" + Date.now() + "-" + Math.random().toString(36).slice(2);
     threadsCache[tempId] = {
+      id: tempId,
+      nodeId: null,
       messages: [
         { role: "user", text: value },
         { role: "assistant", text: "回答を生成中…", pending: true },
@@ -956,6 +1024,7 @@ function renderPage(jsx: string): string {
           var thread = threadsCache[tempId];
           delete threadsCache[tempId];
           if (res.ok) {
+            thread.id = data.threadId;
             threadsCache[data.threadId] = thread;
             if (activeThreadId === tempId) {
               activeThreadId = data.threadId;
@@ -975,6 +1044,23 @@ function renderPage(jsx: string): string {
         });
       });
   }
+
+  backBtn.addEventListener("click", function () {
+    activeThreadId = null;
+    resetComposer();
+    renderThreadPanel();
+  });
+
+  fetch("/api/threads")
+    .then(function (res) {
+      return res.json();
+    })
+    .then(function (list) {
+      list.forEach(function (t) {
+        threadsCache[t.id] = t;
+      });
+      renderThreadPanel();
+    });
 
   submitBtn.addEventListener("click", function () {
     submit();
@@ -998,10 +1084,19 @@ export function createServer(
   onReply: ReplyThreadHandler,
   onGetThread: GetThreadHandler,
   onDeleteThread: DeleteThreadHandler,
+  onListThreads: ListThreadsHandler,
 ) {
   let currentJsx = jsx;
 
   return createHttpServer((req, res) => {
+    if (req.method === "GET" && req.url === "/api/threads") {
+      onListThreads().then((threads) => {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(threads));
+      });
+      return;
+    }
+
     if (req.method === "POST" && req.url === "/api/threads") {
       let body = "";
       req.on("data", (chunk) => {

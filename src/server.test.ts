@@ -1,7 +1,13 @@
 import { describe, it, expect, beforeAll, afterAll, vi, beforeEach, afterEach } from "vitest";
 import { createServer } from "./server.js";
 import type { Server } from "node:http";
-import type { CreateThreadHandler, ReplyThreadHandler, GetThreadHandler, DeleteThreadHandler } from "./server.js";
+import type {
+  CreateThreadHandler,
+  ReplyThreadHandler,
+  GetThreadHandler,
+  DeleteThreadHandler,
+  ListThreadsHandler,
+} from "./server.js";
 
 describe("createServer", () => {
   let server: Server;
@@ -12,9 +18,10 @@ describe("createServer", () => {
   const onReply = vi.fn<ReplyThreadHandler>();
   const onGetThread = vi.fn<GetThreadHandler>();
   const onDeleteThread = vi.fn<DeleteThreadHandler>();
+  const onListThreads = vi.fn<ListThreadsHandler>();
 
   beforeAll(async () => {
-    server = createServer(jsx, onCreateThread, onReply, onGetThread, onDeleteThread);
+    server = createServer(jsx, onCreateThread, onReply, onGetThread, onDeleteThread, onListThreads);
     await new Promise<void>((resolve) => server.listen(0, resolve));
     const address = server.address();
     const port = typeof address === "object" && address ? address.port : 0;
@@ -119,9 +126,28 @@ describe("createServer", () => {
     expect(body).toMatch(/#htllm-composer\s*\{[^}]*border-top/);
   });
 
+  it("gives the panel a control to leave a thread and go back to the list", async () => {
+    const res = await fetch(baseUrl);
+    const body = await res.text();
+    expect(body).toContain('id="htllm-panel-back"');
+  });
+
+  it("loads the thread list from the server so past threads survive a reload", async () => {
+    const res = await fetch(baseUrl);
+    const body = await res.text();
+    expect(body).toContain('fetch("/api/threads")');
+  });
+
+  it("no longer mentions the removed text-selection UI", async () => {
+    const res = await fetch(baseUrl);
+    const body = await res.text();
+    expect(body).not.toContain("テキストを選択");
+    expect(body).not.toContain("data-thread-id]");
+  });
+
   it("generates different HTML for different content", async () => {
     const otherJsx = "<h1>Different content</h1>";
-    const otherServer = createServer(otherJsx, onCreateThread, onReply, onGetThread, onDeleteThread);
+    const otherServer = createServer(otherJsx, onCreateThread, onReply, onGetThread, onDeleteThread, onListThreads);
     await new Promise<void>((resolve) => otherServer.listen(0, resolve));
     const address = otherServer.address();
     const port = typeof address === "object" && address ? address.port : 0;
@@ -142,13 +168,16 @@ describe("POST /api/threads", () => {
   let onReply: ReturnType<typeof vi.fn<ReplyThreadHandler>>;
   let onGetThread: ReturnType<typeof vi.fn<GetThreadHandler>>;
   let onDeleteThread: ReturnType<typeof vi.fn<DeleteThreadHandler>>;
+  let onListThreads: ReturnType<typeof vi.fn<ListThreadsHandler>>;
 
   beforeEach(async () => {
     onCreateThread = vi.fn<CreateThreadHandler>();
     onReply = vi.fn<ReplyThreadHandler>();
     onGetThread = vi.fn<GetThreadHandler>();
     onDeleteThread = vi.fn<DeleteThreadHandler>();
-    server = createServer("<h1>initial</h1>", onCreateThread, onReply, onGetThread, onDeleteThread);
+    onListThreads = vi.fn<ListThreadsHandler>();
+    onListThreads.mockResolvedValue([]);
+    server = createServer("<h1>initial</h1>", onCreateThread, onReply, onGetThread, onDeleteThread, onListThreads);
     await new Promise<void>((resolve) => server.listen(0, resolve));
     const address = server.address();
     const port = typeof address === "object" && address ? address.port : 0;
@@ -233,13 +262,16 @@ describe("POST /api/threads/:id/reply", () => {
   let onReply: ReturnType<typeof vi.fn<ReplyThreadHandler>>;
   let onGetThread: ReturnType<typeof vi.fn<GetThreadHandler>>;
   let onDeleteThread: ReturnType<typeof vi.fn<DeleteThreadHandler>>;
+  let onListThreads: ReturnType<typeof vi.fn<ListThreadsHandler>>;
 
   beforeEach(async () => {
     onCreateThread = vi.fn<CreateThreadHandler>();
     onReply = vi.fn<ReplyThreadHandler>();
     onGetThread = vi.fn<GetThreadHandler>();
     onDeleteThread = vi.fn<DeleteThreadHandler>();
-    server = createServer("<h1>initial</h1>", onCreateThread, onReply, onGetThread, onDeleteThread);
+    onListThreads = vi.fn<ListThreadsHandler>();
+    onListThreads.mockResolvedValue([]);
+    server = createServer("<h1>initial</h1>", onCreateThread, onReply, onGetThread, onDeleteThread, onListThreads);
     await new Promise<void>((resolve) => server.listen(0, resolve));
     const address = server.address();
     const port = typeof address === "object" && address ? address.port : 0;
@@ -309,13 +341,16 @@ describe("GET /api/threads/:id", () => {
   let onReply: ReturnType<typeof vi.fn<ReplyThreadHandler>>;
   let onGetThread: ReturnType<typeof vi.fn<GetThreadHandler>>;
   let onDeleteThread: ReturnType<typeof vi.fn<DeleteThreadHandler>>;
+  let onListThreads: ReturnType<typeof vi.fn<ListThreadsHandler>>;
 
   beforeEach(async () => {
     onCreateThread = vi.fn<CreateThreadHandler>();
     onReply = vi.fn<ReplyThreadHandler>();
     onGetThread = vi.fn<GetThreadHandler>();
     onDeleteThread = vi.fn<DeleteThreadHandler>();
-    server = createServer("<h1>initial</h1>", onCreateThread, onReply, onGetThread, onDeleteThread);
+    onListThreads = vi.fn<ListThreadsHandler>();
+    onListThreads.mockResolvedValue([]);
+    server = createServer("<h1>initial</h1>", onCreateThread, onReply, onGetThread, onDeleteThread, onListThreads);
     await new Promise<void>((resolve) => server.listen(0, resolve));
     const address = server.address();
     const port = typeof address === "object" && address ? address.port : 0;
@@ -364,6 +399,56 @@ describe("GET /api/threads/:id", () => {
   });
 });
 
+describe("GET /api/threads", () => {
+  let server: Server;
+  let baseUrl: string;
+  let onListThreads: ReturnType<typeof vi.fn<ListThreadsHandler>>;
+
+  beforeEach(async () => {
+    onListThreads = vi.fn<ListThreadsHandler>();
+    server = createServer(
+      "<h1>initial</h1>",
+      vi.fn<CreateThreadHandler>(),
+      vi.fn<ReplyThreadHandler>(),
+      vi.fn<GetThreadHandler>(),
+      vi.fn<DeleteThreadHandler>(),
+      onListThreads,
+    );
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const address = server.address();
+    const port = typeof address === "object" && address ? address.port : 0;
+    baseUrl = `http://localhost:${port}`;
+  });
+
+  afterEach(() => {
+    server.close();
+  });
+
+  it("returns every thread with its id, target node and messages", async () => {
+    onListThreads.mockResolvedValue([
+      { id: "t1", nodeId: "n1", messages: [{ role: "user", text: "これは？" }] },
+      { id: "t2", nodeId: null, messages: [] },
+    ]);
+
+    const res = await fetch(`${baseUrl}/api/threads`);
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body).toEqual([
+      { id: "t1", nodeId: "n1", messages: [{ role: "user", text: "これは？" }] },
+      { id: "t2", nodeId: null, messages: [] },
+    ]);
+  });
+
+  it("returns an empty array when there are no threads", async () => {
+    onListThreads.mockResolvedValue([]);
+
+    const res = await fetch(`${baseUrl}/api/threads`);
+
+    expect(await res.json()).toEqual([]);
+  });
+});
+
 describe("DELETE /api/threads/:id", () => {
   let server: Server;
   let baseUrl: string;
@@ -371,13 +456,16 @@ describe("DELETE /api/threads/:id", () => {
   let onReply: ReturnType<typeof vi.fn<ReplyThreadHandler>>;
   let onGetThread: ReturnType<typeof vi.fn<GetThreadHandler>>;
   let onDeleteThread: ReturnType<typeof vi.fn<DeleteThreadHandler>>;
+  let onListThreads: ReturnType<typeof vi.fn<ListThreadsHandler>>;
 
   beforeEach(async () => {
     onCreateThread = vi.fn<CreateThreadHandler>();
     onReply = vi.fn<ReplyThreadHandler>();
     onGetThread = vi.fn<GetThreadHandler>();
     onDeleteThread = vi.fn<DeleteThreadHandler>();
-    server = createServer("<h1>initial</h1>", onCreateThread, onReply, onGetThread, onDeleteThread);
+    onListThreads = vi.fn<ListThreadsHandler>();
+    onListThreads.mockResolvedValue([]);
+    server = createServer("<h1>initial</h1>", onCreateThread, onReply, onGetThread, onDeleteThread, onListThreads);
     await new Promise<void>((resolve) => server.listen(0, resolve));
     const address = server.address();
     const port = typeof address === "object" && address ? address.port : 0;
