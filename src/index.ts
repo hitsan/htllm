@@ -46,11 +46,9 @@ let threads = await loadThreads();
 
 if (inputPath) {
   const text = await readFile(inputPath, "utf-8");
+  // 再生成でスレッドは消さない。消去は削除ボタンでの明示操作だけに一本化する
   nodes = reconcileIds(nodes, await buildTree(text));
-  // nodeIdがnullなのは対象が未推測なだけなので、部品が消えたスレッドとは区別して残す
-  threads = threads.filter((t) => t.nodeId === null || nodes.some((n) => n.id === t.nodeId));
   await saveTree(nodes);
-  await saveThreads(threads);
 } else if (nodes.length === 0) {
   const initial = "htllmへようこそ。これはファイルに保存された部品ツリーから表示されています。右のチャットに質問や指示を打つと、どの部品についての発言かが推測されます。";
   nodes = await buildTree(initial);

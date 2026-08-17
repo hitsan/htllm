@@ -126,6 +126,25 @@ describe("createServer", () => {
     expect(body).toMatch(/#htllm-composer\s*\{[^}]*border-top/);
   });
 
+  it("gives the panel a control to leave a thread and go back to the list", async () => {
+    const res = await fetch(baseUrl);
+    const body = await res.text();
+    expect(body).toContain('id="htllm-panel-back"');
+  });
+
+  it("loads the thread list from the server so past threads survive a reload", async () => {
+    const res = await fetch(baseUrl);
+    const body = await res.text();
+    expect(body).toContain('fetch("/api/threads")');
+  });
+
+  it("no longer mentions the removed text-selection UI", async () => {
+    const res = await fetch(baseUrl);
+    const body = await res.text();
+    expect(body).not.toContain("テキストを選択");
+    expect(body).not.toContain("data-thread-id]");
+  });
+
   it("generates different HTML for different content", async () => {
     const otherJsx = "<h1>Different content</h1>";
     const otherServer = createServer(otherJsx, onCreateThread, onReply, onGetThread, onDeleteThread, onListThreads);
