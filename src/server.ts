@@ -1,9 +1,6 @@
 import { createServer as createHttpServer } from "node:http";
 
 export type CreateThreadHandler = (params: {
-  nodeId: string;
-  start: number;
-  end: number;
   message: string;
 }) => Promise<{ threadId: string; jsx: string }>;
 export type ReplyThreadHandler = (threadId: string, message: string) => Promise<{ jsx: string; answer: string }>;
@@ -760,8 +757,7 @@ function renderPage(jsx: string): string {
   </div>
   <div id="htllm-threads"></div>
   <div id="htllm-composer">
-    <div id="htllm-composer-quote"></div>
-    <textarea id="htllm-composer-input" placeholder="テキストを選択するか、続けて入力…" rows="2"></textarea>
+    <textarea id="htllm-composer-input" placeholder="メッセージを入力…" rows="2"></textarea>
     <div id="htllm-composer-buttons">
       <button type="button" id="htllm-composer-submit-btn">送信</button>
     </div>
@@ -770,7 +766,6 @@ function renderPage(jsx: string): string {
 <script>
 (function () {
   var panel = document.getElementById("htllm-comments-panel");
-  var quoteEl = document.getElementById("htllm-composer-quote");
   var input = document.getElementById("htllm-composer-input");
   var submitBtn = document.getElementById("htllm-composer-submit-btn");
   var threadsEl = document.getElementById("htllm-threads");
@@ -791,78 +786,16 @@ function renderPage(jsx: string): string {
     applyTheme(next);
   });
 
-  var selectedNodeId = null;
-  var selectedStart = null;
-  var selectedEnd = null;
-  var selectedQuote = "";
-
-  function getOffsetsWithinNode(range, nodeEl) {
-    var preRange = document.createRange();
-    preRange.selectNodeContents(nodeEl);
-    preRange.setEnd(range.startContainer, range.startOffset);
-    var start = preRange.toString().length;
-    var end = start + range.toString().length;
-    return { start: start, end: end };
-  }
-
-  document.addEventListener("mouseup", function (e) {
-    if (panel.contains(e.target)) {
-      return;
-    }
-    var selection = window.getSelection();
-    var text = selection ? selection.toString().trim() : "";
-    if (text.length === 0) {
-      return;
-    }
-    var range = selection.getRangeAt(0);
-    var container = range.commonAncestorContainer;
-    var el = container.nodeType === 1 ? container : container.parentElement;
-    var nodeEl = el ? el.closest("[data-node-id]") : null;
-    if (!nodeEl) {
-      return;
-    }
-    var offsets = getOffsetsWithinNode(range, nodeEl);
-    selectedNodeId = nodeEl.getAttribute("data-node-id");
-    selectedStart = offsets.start;
-    selectedEnd = offsets.end;
-    selectedQuote = text;
-    quoteEl.textContent = "選択中: " + text;
-    quoteEl.style.display = "block";
-    input.focus();
-  });
-
   function resetComposer() {
     input.value = "";
-    quoteEl.textContent = "";
-    quoteEl.style.display = "none";
-    selectedNodeId = null;
-    selectedStart = null;
-    selectedEnd = null;
-    selectedQuote = "";
   }
 
   var threadsCache = {};
   var activeThreadId = null;
 
-  function attachHighlightClickHandlers() {
-    var marks = document.querySelectorAll("mark[data-thread-id]");
-    marks.forEach(function (mark) {
-      mark.addEventListener("click", function () {
-        showThread(mark.getAttribute("data-thread-id"));
-      });
-    });
-  }
-
-  function attachHighlightClickHandlersAfterPaint() {
-    requestAnimationFrame(function () {
-      requestAnimationFrame(attachHighlightClickHandlers);
-    });
-  }
-
   function rerender(jsx) {
     var code = Babel.transform(jsx, { presets: [["react", { runtime: "classic" }]] }).code;
     (0, eval)(code);
-    attachHighlightClickHandlersAfterPaint();
   }
 
   function renderThreadPanel() {
@@ -875,11 +808,6 @@ function renderPage(jsx: string): string {
     var card = document.createElement("div");
     card.className = "htllm-thread-card";
     card.setAttribute("data-thread-id", activeThreadId);
-
-    var quoteDiv = document.createElement("div");
-    quoteDiv.className = "htllm-comment-quote";
-    quoteDiv.textContent = thread.quote;
-    card.appendChild(quoteDiv);
 
     var deleteBtn = document.createElement("button");
     deleteBtn.type = "button";
@@ -999,23 +927,18 @@ function renderPage(jsx: string): string {
     if (value.length === 0) {
       return;
     }
-    if (selectedNodeId) {
-      submitNewThread(value);
-    } else if (activeThreadId) {
+    if (activeThreadId) {
       submitReply(activeThreadId, value);
+    } else {
+      submitNewThread(value);
     }
   }
 
   function submitNewThread(value) {
-    var nodeId = selectedNodeId;
-    var start = selectedStart;
-    var end = selectedEnd;
-    var quote = selectedQuote;
     resetComposer();
 
     var tempId = "pending-" + Date.now() + "-" + Math.random().toString(36).slice(2);
     threadsCache[tempId] = {
-      quote: quote,
       messages: [
         { role: "user", text: value },
         { role: "assistant", text: "回答を生成中…", pending: true },
@@ -1026,7 +949,7 @@ function renderPage(jsx: string): string {
     fetch("/api/threads", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nodeId: nodeId, start: start, end: end, message: value }),
+      body: JSON.stringify({ message: value }),
     })
       .then(function (res) {
         return res.json().then(function (data) {
@@ -1062,7 +985,6 @@ function renderPage(jsx: string): string {
       submit();
     }
   });
-  attachHighlightClickHandlersAfterPaint();
 })();
 </script>
 <script type="text/babel" id="htllm-jsx-script">${jsx}</script>
@@ -1086,9 +1008,9 @@ export function createServer(
         body += chunk;
       });
       req.on("end", async () => {
-        const { nodeId, start, end, message } = JSON.parse(body);
+        const { message } = JSON.parse(body);
         try {
-          const thread = await onCreateThread({ nodeId, start, end, message });
+          const thread = await onCreateThread({ message });
           currentJsx = thread.jsx;
 
           res.writeHead(200, { "Content-Type": "application/json" });

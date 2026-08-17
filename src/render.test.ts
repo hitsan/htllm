@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Node } from "./tree.js";
 
 const runTurnMock = vi.fn();
 vi.mock("./claude/runTurn.js", () => ({
@@ -317,124 +318,140 @@ describe("buildTree", () => {
 });
 
 describe("respond", () => {
+  const doc: Node[] = [
+    { id: "a1", type: "heading", text: "導入" },
+    { id: "a2", type: "prose", text: "古い本文" },
+    { id: "a3", type: "card", title: "旧見出し", text: "旧本文" },
+  ];
+
   beforeEach(() => {
     runTurnMock.mockReset();
   });
 
-  it("文章全体・選択部分・部品の現在の中身・メッセージをプロンプトに含める", async () => {
+  it("ページ全体の部品をidつきでプロンプトに含める", async () => {
     runTurnMock.mockResolvedValue({
-      result: "ANSWER\n回答です",
+      result: "ANSWER a2\n回答です",
       sessionId: "session-1",
       stopReason: "end_turn",
     });
 
-    await respond({ id: "n2", type: "prose", text: "古い本文" }, "文章全体", "選択部分", "質問文");
+    await respond(doc, "質問文");
 
     const [prompt] = runTurnMock.mock.calls[0];
-    expect(prompt).toContain("文章全体");
-    expect(prompt).toContain("選択部分");
+    expect(prompt).toContain("a1");
+    expect(prompt).toContain("a2");
+    expect(prompt).toContain("導入");
     expect(prompt).toContain("古い本文");
     expect(prompt).toContain("質問文");
   });
 
-  it("ANSWER応答なら質問への回答としてkind:answerを返す", async () => {
+  it("ANSWER応答から対象idと回答を取り出す", async () => {
     runTurnMock.mockResolvedValue({
-      result: "ANSWER\n回答です",
+      result: "ANSWER a2\n回答です",
       sessionId: "session-abc",
       stopReason: "end_turn",
     });
 
-    const result = await respond({ id: "n2", type: "prose", text: "本文" }, "文章全体", "選択部分", "質問文");
+    const result = await respond(doc, "質問文");
 
-    expect(result).toEqual({ kind: "answer", answer: "回答です", sessionId: "session-abc" });
+    expect(result).toEqual({
+      kind: "answer",
+      nodeId: "a2",
+      answer: "回答です",
+      sessionId: "session-abc",
+    });
   });
 
-  it("EDIT応答ならidとtypeを保ったままフィールドを差し替えたkind:editを返す", async () => {
+  it("EDIT応答なら推測された部品のフィールドを差し替えて返す", async () => {
     runTurnMock.mockResolvedValue({
-      result: 'EDIT\n{"text":"新しい本文"}',
+      result: 'EDIT a2\n{"text":"新しい本文"}',
       sessionId: "session-abc",
       stopReason: "end_turn",
     });
 
-    const result = await respond({ id: "n2", type: "prose", text: "古い本文" }, "文章全体", "選択部分", "指示");
+    const result = await respond(doc, "指示");
 
     expect(result).toEqual({
       kind: "edit",
-      node: { id: "n2", type: "prose", text: "新しい本文" },
+      nodeId: "a2",
+      node: { id: "a2", type: "prose", text: "新しい本文" },
       sessionId: "session-abc",
     });
   });
 
   it("EDIT応答の```json コードフェンスで包まれていても中身をパースする", async () => {
     runTurnMock.mockResolvedValue({
-      result: 'EDIT\n```json\n{"text":"新しい本文"}\n```',
+      result: 'EDIT a2\n```json\n{"text":"新しい本文"}\n```',
       sessionId: "session-1",
       stopReason: "end_turn",
     });
 
-    const result = await respond({ id: "n2", type: "prose", text: "古い本文" }, "文章全体", "選択部分", "指示");
+    const result = await respond(doc, "指示");
 
-    expect(result.kind).toBe("edit");
-    expect(result.kind === "edit" && result.node).toEqual({ id: "n2", type: "prose", text: "新しい本文" });
+    expect(result.kind === "edit" && result.node).toEqual({
+      id: "a2",
+      type: "prose",
+      text: "新しい本文",
+    });
   });
 
   it("複数フィールドを持つ部品(card)でも、返り値のフィールドをまとめて差し替える", async () => {
     runTurnMock.mockResolvedValue({
-      result: 'EDIT\n{"title":"新見出し","text":"新本文"}',
+      result: 'EDIT a3\n{"title":"新見出し","text":"新本文"}',
       sessionId: "session-1",
       stopReason: "end_turn",
     });
 
-    const result = await respond(
-      { id: "c1", type: "card", title: "旧見出し", text: "旧本文" },
-      "文章全体",
-      "選択部分",
-      "見出しと本文を書き換えて",
-    );
+    const result = await respond(doc, "見出しと本文を書き換えて");
 
     expect(result.kind === "edit" && result.node).toEqual({
-      id: "c1",
+      id: "a3",
       type: "card",
       title: "新見出し",
       text: "新本文",
     });
   });
 
-  it("ANSWER/EDITの前後の空白・改行を取り除いて判定する", async () => {
+  it("存在しないidを返してきたら、落ちずにその旨をanswerとして返す", async () => {
     runTurnMock.mockResolvedValue({
-      result: "\nANSWER\n回答です\n",
+      result: 'EDIT zzz\n{"text":"新しい本文"}',
       sessionId: "session-1",
       stopReason: "end_turn",
     });
 
-    const result = await respond({ id: "n2", type: "prose", text: "本文" }, "文章全体", "選択部分", "質問文");
+    const result = await respond(doc, "指示");
 
-    expect(result).toEqual({ kind: "answer", answer: "回答です", sessionId: "session-1" });
+    expect(result.kind).toBe("answer");
+    expect(result.kind === "answer" && result.nodeId).toBeNull();
+  });
+
+  it("1行目の前後の空白・改行を取り除いて判定する", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "\nANSWER a2\n回答です\n",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const result = await respond(doc, "質問文");
+
+    expect(result).toEqual({
+      kind: "answer",
+      nodeId: "a2",
+      answer: "回答です",
+      sessionId: "session-1",
+    });
   });
 
   it("作業ディレクトリ等のメタな言及を禁止する指示を含む", async () => {
     runTurnMock.mockResolvedValue({
-      result: "ANSWER\n回答です",
+      result: "ANSWER a2\n回答です",
       sessionId: "session-1",
       stopReason: "end_turn",
     });
 
-    await respond({ id: "n2", type: "prose", text: "本文" }, "文章全体", "選択部分", "質問文");
+    await respond(doc, "質問文");
 
     const [prompt] = runTurnMock.mock.calls[0];
-    expect(prompt).toContain("無関係な内容は");
-  });
-
-  it("resumeSessionIdを渡すとrunTurnにresumeSessionIdとして渡す", async () => {
-    runTurnMock.mockResolvedValue({
-      result: "ANSWER\n回答です",
-      sessionId: "session-abc",
-      stopReason: "end_turn",
-    });
-
-    await respond({ id: "n2", type: "prose", text: "本文" }, "文章全体", "選択部分", "続けての質問", "session-prev");
-
-    const [, options] = runTurnMock.mock.calls[0];
-    expect(options).toEqual({ resumeSessionId: "session-prev" });
+    expect(prompt).toContain("無関係な内容は一切書かないでください");
   });
 });
