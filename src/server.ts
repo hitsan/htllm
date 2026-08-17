@@ -1,5 +1,7 @@
 import { createServer as createHttpServer } from "node:http";
+import type { Thread } from "./thread.js";
 
+export type ListThreadsHandler = () => Promise<Omit<Thread, "sessionId">[]>;
 export type CreateThreadHandler = (params: {
   message: string;
 }) => Promise<{ threadId: string; jsx: string }>;
@@ -998,10 +1000,19 @@ export function createServer(
   onReply: ReplyThreadHandler,
   onGetThread: GetThreadHandler,
   onDeleteThread: DeleteThreadHandler,
+  onListThreads: ListThreadsHandler,
 ) {
   let currentJsx = jsx;
 
   return createHttpServer((req, res) => {
+    if (req.method === "GET" && req.url === "/api/threads") {
+      onListThreads().then((threads) => {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(threads));
+      });
+      return;
+    }
+
     if (req.method === "POST" && req.url === "/api/threads") {
       let body = "";
       req.on("data", (chunk) => {
