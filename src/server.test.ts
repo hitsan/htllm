@@ -165,7 +165,7 @@ describe("POST /api/threads", () => {
     const res = await fetch(`${baseUrl}/api/threads`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nodeId: "n1", start: 0, end: 3, message: "これは？" }),
+      body: JSON.stringify({ message: "これは？" }),
     });
 
     expect(res.status).toBe(200);
@@ -177,15 +177,10 @@ describe("POST /api/threads", () => {
     await fetch(`${baseUrl}/api/threads`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nodeId: "n1", start: 0, end: 3, message: "これは？" }),
+      body: JSON.stringify({ message: "これは？" }),
     });
 
-    expect(onCreateThread).toHaveBeenCalledWith({
-      nodeId: "n1",
-      start: 0,
-      end: 3,
-      message: "これは？",
-    });
+    expect(onCreateThread).toHaveBeenCalledWith({ message: "これは？" });
   });
 
   it("returns threadId/jsx as JSON", async () => {
@@ -194,7 +189,7 @@ describe("POST /api/threads", () => {
     const res = await fetch(`${baseUrl}/api/threads`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nodeId: "n1", start: 0, end: 3, message: "短くして" }),
+      body: JSON.stringify({ message: "短くして" }),
     });
     const body = await res.json();
 
@@ -207,7 +202,7 @@ describe("POST /api/threads", () => {
     await fetch(`${baseUrl}/api/threads`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nodeId: "n1", start: 0, end: 3, message: "これは？" }),
+      body: JSON.stringify({ message: "これは？" }),
     });
 
     const res = await fetch(baseUrl);
@@ -222,7 +217,7 @@ describe("POST /api/threads", () => {
     const res = await fetch(`${baseUrl}/api/threads`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nodeId: "n1", start: 0, end: 3, message: "これは？" }),
+      body: JSON.stringify({ message: "これは？" }),
     });
     const body = await res.json();
 

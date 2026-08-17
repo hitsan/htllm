@@ -1,8 +1,8 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { createServer } from "./server.js";
 import { buildTree, respond } from "./render.js";
-import { renderTree, replaceNode, reconcileIds, nodeToText, type Node } from "./tree.js";
-import { createThread, appendMessage, invalidateRangeForNode, type Thread } from "./thread.js";
+import { renderTree, replaceNode, reconcileIds, type Node } from "./tree.js";
+import { createThread, appendMessage, setTarget, type Thread } from "./thread.js";
 
 const DOC_PATH = "doc.json";
 const THREADS_PATH = "threads.json";
@@ -33,10 +33,10 @@ async function saveThreads(threads: Thread[]): Promise<void> {
   await writeFile(THREADS_PATH, JSON.stringify(threads, null, 2), "utf-8");
 }
 
-function toJsx(nodes: Node[], threads: Thread[]): string {
+function toJsx(nodes: Node[]): string {
   return `
 window.__htllmRoot = window.__htllmRoot || ReactDOM.createRoot(document.getElementById('root'));
-window.__htllmRoot.render(${renderTree(nodes, threads)});
+window.__htllmRoot.render(${renderTree(nodes)});
 `;
 }
 
@@ -59,22 +59,31 @@ if (inputPath) {
 type PendingResult = { answer: string; jsx: string };
 const pendingAnswers = new Map<string, PendingResult | null>();
 
-async function resolveAnswer(thread: Thread, target: Node, message: string): Promise<void> {
+async function applyRespond(thread: Thread, message: string): Promise<{ thread: Thread; answer: string }> {
+  const result = await respond(nodes, message, thread.sessionId);
+
   let answer: string;
+  if (result.kind === "edit") {
+    nodes = replaceNode(nodes, result.nodeId, result.node);
+    await saveTree(nodes);
+    answer = "反映しました";
+  } else {
+    answer = result.answer;
+  }
+
+  return {
+    thread: { ...setTarget(thread, result.nodeId), sessionId: result.sessionId },
+    answer,
+  };
+}
+
+async function resolveAnswer(thread: Thread, message: string): Promise<void> {
   let updatedThread = thread;
+  let answer: string;
   try {
-    const docText = nodes.map(nodeToText).join("\n");
-    const result = await respond(target, docText, thread.quote, message, thread.sessionId);
-    if (result.kind === "edit") {
-      nodes = replaceNode(nodes, thread.nodeId, result.node);
-      threads = invalidateRangeForNode(threads, thread.nodeId);
-      updatedThread = threads.find((t) => t.id === thread.id) ?? thread;
-      await saveTree(nodes);
-      answer = "反映しました";
-    } else {
-      answer = result.answer;
-    }
-    updatedThread = { ...updatedThread, sessionId: result.sessionId };
+    const applied = await applyRespond(thread, message);
+    updatedThread = applied.thread;
+    answer = applied.answer;
   } catch (err) {
     answer = `エラー: ${err instanceof Error ? err.message : String(err)}`;
   }
@@ -82,31 +91,19 @@ async function resolveAnswer(thread: Thread, target: Node, message: string): Pro
   const updated = appendMessage(updatedThread, "assistant", answer);
   threads = threads.map((t) => (t.id === thread.id ? updated : t));
   await saveThreads(threads);
-  pendingAnswers.set(thread.id, { answer, jsx: toJsx(nodes, threads) });
+  pendingAnswers.set(thread.id, { answer, jsx: toJsx(nodes) });
 }
 
-async function onCreateThread(params: {
-  nodeId: string;
-  start: number;
-  end: number;
-  message: string;
-}): Promise<{ threadId: string; jsx: string }> {
-  const target = nodes.find((n) => n.id === params.nodeId);
-  if (!target) {
-    throw new Error(`node not found: ${params.nodeId}`);
-  }
-
-  const quote = nodeToText(target).slice(params.start, params.end);
-  const range = { start: params.start, end: params.end };
-  let thread = createThread({ nodeId: params.nodeId, range, quote });
+async function onCreateThread(params: { message: string }): Promise<{ threadId: string; jsx: string }> {
+  let thread = createThread();
   thread = appendMessage(thread, "user", params.message);
   threads = [...threads, thread];
   await saveThreads(threads);
 
   pendingAnswers.set(thread.id, null);
-  resolveAnswer(thread, target, params.message);
+  resolveAnswer(thread, params.message);
 
-  return { threadId: thread.id, jsx: toJsx(nodes, threads) };
+  return { threadId: thread.id, jsx: toJsx(nodes) };
 }
 
 async function onGetThread(
@@ -117,7 +114,7 @@ async function onGetThread(
   }
   const result = pendingAnswers.get(threadId)!;
   if (result === null) {
-    return { pending: true, answer: "", jsx: toJsx(nodes, threads) };
+    return { pending: true, answer: "", jsx: toJsx(nodes) };
   }
   return { pending: false, answer: result.answer, jsx: result.jsx };
 }
@@ -129,7 +126,7 @@ async function onDeleteThread(threadId: string): Promise<{ jsx: string } | null>
   threads = threads.filter((t) => t.id !== threadId);
   pendingAnswers.delete(threadId);
   await saveThreads(threads);
-  return { jsx: toJsx(nodes, threads) };
+  return { jsx: toJsx(nodes) };
 }
 
 async function onReply(threadId: string, message: string): Promise<{ jsx: string; answer: string }> {
@@ -137,36 +134,18 @@ async function onReply(threadId: string, message: string): Promise<{ jsx: string
   if (!thread) {
     throw new Error(`thread not found: ${threadId}`);
   }
-  const target = nodes.find((n) => n.id === thread.nodeId);
-  if (!target) {
-    throw new Error(`node not found: ${thread.nodeId}`);
-  }
 
-  const docText = nodes.map(nodeToText).join("\n");
-  const result = await respond(target, docText, thread.quote, message, thread.sessionId);
+  const applied = await applyRespond(thread, message);
 
-  let answer: string;
-  let updatedThread = thread;
-  if (result.kind === "edit") {
-    nodes = replaceNode(nodes, thread.nodeId, result.node);
-    threads = invalidateRangeForNode(threads, thread.nodeId);
-    updatedThread = threads.find((t) => t.id === threadId) ?? thread;
-    await saveTree(nodes);
-    answer = "反映しました";
-  } else {
-    answer = result.answer;
-  }
-  updatedThread = { ...updatedThread, sessionId: result.sessionId };
-
-  let updated = appendMessage(updatedThread, "user", message);
-  updated = appendMessage(updated, "assistant", answer);
+  let updated = appendMessage(applied.thread, "user", message);
+  updated = appendMessage(updated, "assistant", applied.answer);
   threads = threads.map((t) => (t.id === threadId ? updated : t));
   await saveThreads(threads);
 
-  return { jsx: toJsx(nodes, threads), answer };
+  return { jsx: toJsx(nodes), answer: applied.answer };
 }
 
-const jsx = toJsx(nodes, threads);
+const jsx = toJsx(nodes);
 
 const port = 3000;
 const server = createServer(jsx, onCreateThread, onReply, onGetThread, onDeleteThread);

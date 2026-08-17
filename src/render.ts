@@ -47,56 +47,69 @@ ${inputText}`;
 }
 
 export type RespondResult =
-  | { kind: "answer"; answer: string; sessionId: string }
-  | { kind: "edit"; node: Node; sessionId: string };
+  | { kind: "answer"; nodeId: string | null; answer: string; sessionId: string }
+  | { kind: "edit"; nodeId: string; node: Node; sessionId: string };
 
 export async function respond(
-  node: Node,
-  fullText: string,
-  quote: string,
+  nodes: Node[],
   message: string,
   resumeSessionId?: string,
 ): Promise<RespondResult> {
-  const { type, ...fields } = node;
-  const prompt = `次のメッセージが、選択された部分についての「質問」なのか、部品の中身の書き換えを求める「指示」なのかを判断し、
+  const parts = nodes
+    .map((n) => {
+      const { id, type, ...fields } = n;
+      return `[id=${id} type=${type}] ${JSON.stringify(fields)}`;
+    })
+    .join("\n");
+
+  const prompt = `次のメッセージが、ページのどの部品についての発言かを推測してください。
+そのうえで、その部品についての「質問」なのか、部品の中身の書き換えを求める「指示」なのかを判断し、
 それぞれ次の形式で返してください。
 
-質問の場合: 1行目に "ANSWER" とだけ書き、2行目以降に日本語で簡潔な回答を書いてください。
-指示の場合: 1行目に "EDIT" とだけ書き、2行目以降に書き換えた後のフィールドだけをJSONオブジェクトとして書いてください（type, idは含めない）。
+質問の場合: 1行目に "ANSWER <部品のid>" と書き、2行目以降に日本語で簡潔な回答を書いてください。
+指示の場合: 1行目に "EDIT <部品のid>" と書き、2行目以降に書き換えた後のフィールドだけをJSONオブジェクトとして書いてください（type, idは含めない）。
 
+idは必ず下記の部品一覧にあるものを1つ選んでください。
 説明文やコードブロックの \`\`\` は不要です（EDITのJSON部分を除く）。
 ${OUTPUT_DISCIPLINE}
 
-文章全体:
-${fullText}
-
-選択された部分:
-${quote}
-
-部品(${type})の現在の中身:
-${JSON.stringify(fields)}
+ページの部品:
+${parts}
 
 メッセージ:
 ${message}`;
 
   const { result, sessionId } = await runTurn(prompt, resumeSessionId ? { resumeSessionId } : undefined);
-  const { kind, body } = splitKindAndBody(result);
+  const { kind, nodeId, body } = splitHeaderAndBody(result);
+  const target = nodes.find((n) => n.id === nodeId);
+
+  if (target === undefined) {
+    return {
+      kind: "answer",
+      nodeId: null,
+      answer: kind === "EDIT" ? "対象の部品を特定できませんでした" : body,
+      sessionId,
+    };
+  }
 
   if (kind === "EDIT") {
     const json = extractFencedContent(body) ?? body;
     const newFields = JSON.parse(json) as Record<string, unknown>;
-    return { kind: "edit", node: { ...node, ...newFields } as Node, sessionId };
+    return { kind: "edit", nodeId: target.id, node: { ...target, ...newFields } as Node, sessionId };
   }
-  return { kind: "answer", answer: body, sessionId };
+  return { kind: "answer", nodeId: target.id, answer: body, sessionId };
 }
 
-function splitKindAndBody(text: string): { kind: string; body: string } {
+function splitHeaderAndBody(text: string): { kind: string; nodeId: string; body: string } {
   const trimmed = text.trim();
   const newlineIndex = trimmed.indexOf("\n");
-  if (newlineIndex === -1) {
-    return { kind: trimmed, body: "" };
+  const header = newlineIndex === -1 ? trimmed : trimmed.slice(0, newlineIndex).trim();
+  const body = newlineIndex === -1 ? "" : trimmed.slice(newlineIndex + 1).trim();
+  const spaceIndex = header.indexOf(" ");
+  if (spaceIndex === -1) {
+    return { kind: header, nodeId: "", body };
   }
-  return { kind: trimmed.slice(0, newlineIndex).trim(), body: trimmed.slice(newlineIndex + 1).trim() };
+  return { kind: header.slice(0, spaceIndex), nodeId: header.slice(spaceIndex + 1).trim(), body };
 }
 
 const DESIGN_PRINCIPLES = `- 自己完結: 外部CDN・Webフォント・外部画像への参照は使わない。すべてインラインCSSで完結させる

@@ -1,4 +1,3 @@
-import { renderTextWithHighlights, type Thread, type ThreadRange } from "./thread.js";
 
 type CompareSide = { label: string; text: string; tone: string };
 type FlowNode = { label: string; value: string; sub?: string; role: string };
@@ -29,20 +28,20 @@ function lit(text: string): string {
   return `{${JSON.stringify(text)}}`;
 }
 
-export function renderNode(node: Node, ranges: ThreadRange[] = []): string {
+export function renderNode(node: Node): string {
   switch (node.type) {
     case "prose":
-      return `<p data-node-id="${node.id}">${renderTextWithHighlights(node.text, ranges)}</p>`;
+      return `<p data-node-id="${node.id}">${lit(node.text)}</p>`;
     case "heading": {
       const badge = node.badge !== undefined ? `<span className="htllm-heading-badge">${lit(node.badge)}</span>` : "";
-      return `<h2 data-node-id="${node.id}">${badge}${renderTextWithHighlights(node.text, ranges)}</h2>`;
+      return `<h2 data-node-id="${node.id}">${badge}${lit(node.text)}</h2>`;
     }
     case "steps": {
       const items = node.items.map((item) => `<li>${lit(item)}</li>`).join("");
       return `<ol data-node-id="${node.id}">${items}</ol>`;
     }
     case "callout":
-      return `<div data-node-id="${node.id}" className="htllm-callout">${renderTextWithHighlights(node.text, ranges)}</div>`;
+      return `<div data-node-id="${node.id}" className="htllm-callout">${lit(node.text)}</div>`;
     case "table": {
       const headers = node.headers.map((h) => `<th>${lit(h)}</th>`).join("");
       const rows = node.rows
@@ -141,14 +140,8 @@ export function nodeToText(node: Node): string {
   }
 }
 
-function rangesForNode(threads: Thread[], nodeId: string): ThreadRange[] {
-  return threads
-    .filter((t) => t.nodeId === nodeId && t.range !== null)
-    .map((t) => ({ id: t.id, start: t.range!.start, end: t.range!.end }));
-}
-
-export function renderTree(nodes: Node[], threads: Thread[] = []): string {
-  return `<div data-htllm-root>${nodes.map((n) => renderNode(n, rangesForNode(threads, n.id))).join("")}</div>`;
+export function renderTree(nodes: Node[]): string {
+  return `<div data-htllm-root>${nodes.map(renderNode).join("")}</div>`;
 }
 
 export function reconcileIds(oldNodes: Node[], newNodes: Node[]): Node[] {
