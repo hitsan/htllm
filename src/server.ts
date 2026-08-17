@@ -602,10 +602,13 @@ function renderPage(jsx: string): string {
     #htllm-panel-header {
       flex: none;
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       padding: 12px 16px 0;
+    }
+    #htllm-panel-delete:hover {
+      color: var(--danger);
+      border-color: var(--danger);
     }
     .htllm-panel-btn {
       background: var(--surface);
@@ -626,6 +629,7 @@ function renderPage(jsx: string): string {
       display: block;
     }
     #htllm-theme-toggle {
+      margin-left: auto;
       background: var(--surface);
       color: var(--ink-soft);
       border: 1px solid var(--border);
@@ -710,14 +714,6 @@ function renderPage(jsx: string): string {
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
     }
-    .htllm-thread-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 12px 14px;
-      margin-top: auto;
-      position: relative;
-    }
     .htllm-thread-delete {
       position: absolute;
       top: 10px;
@@ -737,27 +733,23 @@ function renderPage(jsx: string): string {
     .htllm-thread-messages {
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      margin-bottom: 8px;
+      gap: 6px;
+      margin-top: auto;
     }
     .htllm-thread-msg {
       white-space: pre-wrap;
-      max-width: 85%;
-      padding: 6px 10px;
-      border-radius: 12px;
+      line-height: 1.7;
+      color: var(--ink);
     }
     .htllm-thread-msg-user {
-      align-self: flex-end;
-      background: var(--accent);
-      color: #ffffff;
-      border-bottom-right-radius: 2px;
-    }
-    .htllm-thread-msg-assistant {
-      align-self: flex-start;
       background: var(--surface);
       border: 1px solid var(--border);
-      color: var(--ink);
-      border-bottom-left-radius: 2px;
+      border-radius: 8px;
+      padding: 7px 9px;
+    }
+    .htllm-thread-msg-assistant {
+      padding: 1px 2px 5px;
+      color: var(--ink-soft);
     }
     .htllm-thread-msg-assistant[data-pending="true"] {
       font-style: italic;
@@ -770,6 +762,7 @@ function renderPage(jsx: string): string {
 <div id="htllm-comments-panel">
   <div id="htllm-panel-header">
     <button type="button" id="htllm-panel-back" class="htllm-panel-btn" hidden>← 一覧</button>
+    <button type="button" id="htllm-panel-delete" class="htllm-panel-btn" hidden>削除</button>
     <button type="button" id="htllm-theme-toggle" aria-label="ライト/ダークモード切り替え"></button>
   </div>
   <div id="htllm-threads"></div>
@@ -788,6 +781,7 @@ function renderPage(jsx: string): string {
   var threadsEl = document.getElementById("htllm-threads");
   var themeToggle = document.getElementById("htllm-theme-toggle");
   var backBtn = document.getElementById("htllm-panel-back");
+  var deleteBtn = document.getElementById("htllm-panel-delete");
 
   function applyTheme(theme) {
     document.documentElement.setAttribute("data-theme", theme);
@@ -865,24 +859,12 @@ function renderPage(jsx: string): string {
     threadsEl.innerHTML = "";
     var thread = activeThreadId ? threadsCache[activeThreadId] : null;
     backBtn.hidden = !thread;
+    deleteBtn.hidden = !thread;
     input.placeholder = thread ? "このスレッドに返信…" : "送信すると新しいスレッドが始まります…";
     if (!thread) {
       renderThreadList();
       return;
     }
-
-    var card = document.createElement("div");
-    card.className = "htllm-thread-card";
-    card.setAttribute("data-thread-id", activeThreadId);
-
-    var deleteBtn = document.createElement("button");
-    deleteBtn.type = "button";
-    deleteBtn.className = "htllm-thread-delete";
-    deleteBtn.textContent = "削除";
-    deleteBtn.addEventListener("click", function () {
-      deleteThread(activeThreadId);
-    });
-    card.appendChild(deleteBtn);
 
     var messagesEl = document.createElement("div");
     messagesEl.className = "htllm-thread-messages";
@@ -895,9 +877,8 @@ function renderPage(jsx: string): string {
       }
       messagesEl.appendChild(msgEl);
     });
-    card.appendChild(messagesEl);
 
-    threadsEl.appendChild(card);
+    threadsEl.appendChild(messagesEl);
     threadsEl.scrollTop = threadsEl.scrollHeight;
   }
 
@@ -1049,6 +1030,12 @@ function renderPage(jsx: string): string {
     activeThreadId = null;
     resetComposer();
     renderThreadPanel();
+  });
+
+  deleteBtn.addEventListener("click", function () {
+    if (activeThreadId) {
+      deleteThread(activeThreadId);
+    }
   });
 
   fetch("/api/threads")
