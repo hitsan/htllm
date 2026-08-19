@@ -4,12 +4,13 @@ import type { Thread } from "./thread.js";
 export type ListThreadsHandler = () => Promise<Omit<Thread, "sessionId">[]>;
 export type CreateThreadHandler = (params: {
   message: string;
-}) => Promise<{ threadId: string; jsx: string }>;
-export type ReplyThreadHandler = (threadId: string, message: string) => Promise<{ jsx: string; answer: string }>;
+}) => Promise<{ threadId: string; jsx: string; canUndo?: boolean }>;
+export type ReplyThreadHandler = (threadId: string, message: string) => Promise<{ jsx: string; answer: string; canUndo?: boolean }>;
 export type GetThreadHandler = (
   threadId: string,
-) => Promise<{ pending: boolean; answer: string; jsx: string } | null>;
+) => Promise<{ pending: boolean; answer: string; jsx: string; canUndo?: boolean } | null>;
 export type DeleteThreadHandler = (threadId: string) => Promise<{ jsx: string } | null>;
+export type UndoHandler = () => Promise<{ jsx: string; canUndo: boolean } | null>;
 
 function renderPage(jsx: string): string {
   return `<!doctype html>
@@ -688,6 +689,16 @@ function renderPage(jsx: string): string {
     #htllm-composer-buttons button:hover {
       filter: brightness(1.08);
     }
+    #htllm-composer-undo-btn {
+      background: var(--surface-sunken);
+      color: var(--ink-soft);
+      border: 1px solid var(--border-strong);
+    }
+    #htllm-composer-buttons button:disabled {
+      opacity: 0.45;
+      cursor: default;
+      filter: none;
+    }
     .htllm-empty-hint {
       color: var(--ink-soft);
       line-height: 1.7;
@@ -769,6 +780,7 @@ function renderPage(jsx: string): string {
   <div id="htllm-composer">
     <textarea id="htllm-composer-input" placeholder="メッセージを入力…" rows="2"></textarea>
     <div id="htllm-composer-buttons">
+      <button type="button" id="htllm-composer-undo-btn" disabled>元に戻す</button>
       <button type="button" id="htllm-composer-submit-btn">送信</button>
     </div>
   </div>
@@ -778,6 +790,7 @@ function renderPage(jsx: string): string {
   var panel = document.getElementById("htllm-comments-panel");
   var input = document.getElementById("htllm-composer-input");
   var submitBtn = document.getElementById("htllm-composer-submit-btn");
+  var undoBtn = document.getElementById("htllm-composer-undo-btn");
   var threadsEl = document.getElementById("htllm-threads");
   var themeToggle = document.getElementById("htllm-theme-toggle");
   var backBtn = document.getElementById("htllm-panel-back");
@@ -882,6 +895,25 @@ function renderPage(jsx: string): string {
     threadsEl.scrollTop = threadsEl.scrollHeight;
   }
 
+  function setCanUndo(data) {
+    if (data && typeof data.canUndo === "boolean") {
+      undoBtn.disabled = !data.canUndo;
+    }
+  }
+
+  function undoEdit() {
+    undoBtn.disabled = true;
+    fetch("/api/undo", { method: "POST" })
+      .then(function (res) {
+        return res.json().then(function (data) {
+          if (res.ok) {
+            rerender(data.jsx);
+            setCanUndo(data);
+          }
+        });
+      });
+  }
+
   function showThread(threadId) {
     if (!threadsCache[threadId]) {
       return;
@@ -898,6 +930,7 @@ function renderPage(jsx: string): string {
           if (!res.ok) {
             return;
           }
+          setCanUndo(data);
           if (data.pending) {
             setTimeout(function () {
               pollThread(threadId);
@@ -941,6 +974,7 @@ function renderPage(jsx: string): string {
           if (res.ok) {
             pendingMsg.text = data.answer;
             rerender(data.jsx);
+            setCanUndo(data);
           } else {
             pendingMsg.text = "エラー: " + data.error;
           }
@@ -1012,6 +1046,7 @@ function renderPage(jsx: string): string {
               renderThreadPanel();
             }
             rerender(data.jsx);
+            setCanUndo(data);
             pollThread(data.threadId);
           } else {
             thread.messages[thread.messages.length - 1] = { role: "assistant", text: "エラー: " + data.error };
@@ -1049,6 +1084,8 @@ function renderPage(jsx: string): string {
       renderThreadPanel();
     });
 
+  undoBtn.addEventListener("click", undoEdit);
+
   submitBtn.addEventListener("click", function () {
     submit();
   });
@@ -1072,10 +1109,25 @@ export function createServer(
   onGetThread: GetThreadHandler,
   onDeleteThread: DeleteThreadHandler,
   onListThreads: ListThreadsHandler,
+  onUndo: UndoHandler,
 ) {
   let currentJsx = jsx;
 
   return createHttpServer((req, res) => {
+    if (req.method === "POST" && req.url === "/api/undo") {
+      onUndo().then((result) => {
+        if (result === null) {
+          res.writeHead(409, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "nothing to undo" }));
+          return;
+        }
+        currentJsx = result.jsx;
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(result));
+      });
+      return;
+    }
+
     if (req.method === "GET" && req.url === "/api/threads") {
       onListThreads().then((threads) => {
         res.writeHead(200, { "Content-Type": "application/json" });

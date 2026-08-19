@@ -7,6 +7,7 @@ import type {
   GetThreadHandler,
   DeleteThreadHandler,
   ListThreadsHandler,
+  UndoHandler,
 } from "./server.js";
 
 describe("createServer", () => {
@@ -21,7 +22,7 @@ describe("createServer", () => {
   const onListThreads = vi.fn<ListThreadsHandler>();
 
   beforeAll(async () => {
-    server = createServer(jsx, onCreateThread, onReply, onGetThread, onDeleteThread, onListThreads);
+    server = createServer(jsx, onCreateThread, onReply, onGetThread, onDeleteThread, onListThreads, vi.fn<UndoHandler>());
     await new Promise<void>((resolve) => server.listen(0, resolve));
     const address = server.address();
     const port = typeof address === "object" && address ? address.port : 0;
@@ -161,7 +162,7 @@ describe("createServer", () => {
 
   it("generates different HTML for different content", async () => {
     const otherJsx = "<h1>Different content</h1>";
-    const otherServer = createServer(otherJsx, onCreateThread, onReply, onGetThread, onDeleteThread, onListThreads);
+    const otherServer = createServer(otherJsx, onCreateThread, onReply, onGetThread, onDeleteThread, onListThreads, vi.fn<UndoHandler>());
     await new Promise<void>((resolve) => otherServer.listen(0, resolve));
     const address = otherServer.address();
     const port = typeof address === "object" && address ? address.port : 0;
@@ -191,7 +192,7 @@ describe("POST /api/threads", () => {
     onDeleteThread = vi.fn<DeleteThreadHandler>();
     onListThreads = vi.fn<ListThreadsHandler>();
     onListThreads.mockResolvedValue([]);
-    server = createServer("<h1>initial</h1>", onCreateThread, onReply, onGetThread, onDeleteThread, onListThreads);
+    server = createServer("<h1>initial</h1>", onCreateThread, onReply, onGetThread, onDeleteThread, onListThreads, vi.fn<UndoHandler>());
     await new Promise<void>((resolve) => server.listen(0, resolve));
     const address = server.address();
     const port = typeof address === "object" && address ? address.port : 0;
@@ -285,7 +286,7 @@ describe("POST /api/threads/:id/reply", () => {
     onDeleteThread = vi.fn<DeleteThreadHandler>();
     onListThreads = vi.fn<ListThreadsHandler>();
     onListThreads.mockResolvedValue([]);
-    server = createServer("<h1>initial</h1>", onCreateThread, onReply, onGetThread, onDeleteThread, onListThreads);
+    server = createServer("<h1>initial</h1>", onCreateThread, onReply, onGetThread, onDeleteThread, onListThreads, vi.fn<UndoHandler>());
     await new Promise<void>((resolve) => server.listen(0, resolve));
     const address = server.address();
     const port = typeof address === "object" && address ? address.port : 0;
@@ -364,7 +365,7 @@ describe("GET /api/threads/:id", () => {
     onDeleteThread = vi.fn<DeleteThreadHandler>();
     onListThreads = vi.fn<ListThreadsHandler>();
     onListThreads.mockResolvedValue([]);
-    server = createServer("<h1>initial</h1>", onCreateThread, onReply, onGetThread, onDeleteThread, onListThreads);
+    server = createServer("<h1>initial</h1>", onCreateThread, onReply, onGetThread, onDeleteThread, onListThreads, vi.fn<UndoHandler>());
     await new Promise<void>((resolve) => server.listen(0, resolve));
     const address = server.address();
     const port = typeof address === "object" && address ? address.port : 0;
@@ -427,6 +428,7 @@ describe("GET /api/threads", () => {
       vi.fn<GetThreadHandler>(),
       vi.fn<DeleteThreadHandler>(),
       onListThreads,
+      vi.fn<UndoHandler>(),
     );
     await new Promise<void>((resolve) => server.listen(0, resolve));
     const address = server.address();
@@ -479,7 +481,7 @@ describe("DELETE /api/threads/:id", () => {
     onDeleteThread = vi.fn<DeleteThreadHandler>();
     onListThreads = vi.fn<ListThreadsHandler>();
     onListThreads.mockResolvedValue([]);
-    server = createServer("<h1>initial</h1>", onCreateThread, onReply, onGetThread, onDeleteThread, onListThreads);
+    server = createServer("<h1>initial</h1>", onCreateThread, onReply, onGetThread, onDeleteThread, onListThreads, vi.fn<UndoHandler>());
     await new Promise<void>((resolve) => server.listen(0, resolve));
     const address = server.address();
     const port = typeof address === "object" && address ? address.port : 0;
@@ -537,5 +539,89 @@ describe("DELETE /api/threads/:id", () => {
 
     expect(res.status).toBe(400);
     expect(body).toEqual({ error: "boom" });
+  });
+});
+
+describe("POST /api/undo", () => {
+  let server: Server;
+  let baseUrl: string;
+  let onUndo: ReturnType<typeof vi.fn<UndoHandler>>;
+
+  beforeEach(async () => {
+    onUndo = vi.fn<UndoHandler>();
+    const onListThreads = vi.fn<ListThreadsHandler>();
+    onListThreads.mockResolvedValue([]);
+    server = createServer(
+      "<h1>initial</h1>",
+      vi.fn<CreateThreadHandler>(),
+      vi.fn<ReplyThreadHandler>(),
+      vi.fn<GetThreadHandler>(),
+      vi.fn<DeleteThreadHandler>(),
+      onListThreads,
+      onUndo,
+    );
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const address = server.address();
+    const port = typeof address === "object" && address ? address.port : 0;
+    baseUrl = `http://localhost:${port}`;
+  });
+
+  afterEach(() => {
+    server.close();
+  });
+
+  it("returns status 200 with the restored jsx", async () => {
+    onUndo.mockResolvedValue({ jsx: "<h1>restored</h1>", canUndo: false });
+
+    const res = await fetch(`${baseUrl}/api/undo`, { method: "POST" });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body).toEqual({ jsx: "<h1>restored</h1>", canUndo: false });
+  });
+
+  it("reflects the restored jsx on subsequent GET /", async () => {
+    onUndo.mockResolvedValue({ jsx: "<h1>restored</h1>", canUndo: false });
+
+    await fetch(`${baseUrl}/api/undo`, { method: "POST" });
+    const res = await fetch(baseUrl);
+
+    expect(await res.text()).toContain("<h1>restored</h1>");
+  });
+
+  it("returns status 409 when there is nothing to undo", async () => {
+    onUndo.mockResolvedValue(null);
+
+    const res = await fetch(`${baseUrl}/api/undo`, { method: "POST" });
+
+    expect(res.status).toBe(409);
+  });
+});
+
+describe("元に戻すボタン", () => {
+  it("送信ボタンの左に、初期状態では押せない状態で置かれる", async () => {
+    const onListThreads = vi.fn<ListThreadsHandler>();
+    onListThreads.mockResolvedValue([]);
+    const server = createServer(
+      "<h1>x</h1>",
+      vi.fn<CreateThreadHandler>(),
+      vi.fn<ReplyThreadHandler>(),
+      vi.fn<GetThreadHandler>(),
+      vi.fn<DeleteThreadHandler>(),
+      onListThreads,
+      vi.fn<UndoHandler>(),
+    );
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const address = server.address();
+    const port = typeof address === "object" && address ? address.port : 0;
+
+    const html = await (await fetch(`http://localhost:${port}`)).text();
+    server.close();
+
+    const undoIndex = html.indexOf("htllm-composer-undo-btn");
+    const submitIndex = html.indexOf("htllm-composer-submit-btn");
+    expect(undoIndex).toBeGreaterThan(-1);
+    expect(undoIndex).toBeLessThan(submitIndex);
+    expect(html).toContain('id="htllm-composer-undo-btn" disabled');
   });
 });
