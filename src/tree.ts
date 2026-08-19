@@ -159,9 +159,15 @@ export function reconcileIds(oldNodes: Node[], newNodes: Node[]): Node[] {
   });
 }
 
-export function replaceNode(nodes: Node[], id: string, newNode: Node): Node[] {
-  if (!nodes.some((n) => n.id === id)) {
-    throw new Error(`node not found: ${id}`);
+export type Edit = { id: string; nodes: Node[] };
+
+// 対象idの位置を配列で置き換える。1つなら差し替え、複数なら展開、空なら削除
+export function applyEdits(nodes: Node[], edits: Edit[]): Node[] {
+  for (const edit of edits) {
+    if (!nodes.some((n) => n.id === edit.id)) {
+      throw new Error(`node not found: ${edit.id}`);
+    }
+    nodes = nodes.flatMap((n) => (n.id === edit.id ? edit.nodes : [n]));
   }
-  return nodes.map((n) => (n.id === id ? newNode : n));
+  return nodes;
 }

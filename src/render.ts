@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { runTurn } from "./claude/runTurn.js";
-import type { Node } from "./tree.js";
+import type { Edit, Node } from "./tree.js";
 
 const COMPONENT_CATALOG = `- heading: 節や文書の見出し。フィールド: text, badge?（章番号や短いラベル。任意）
 - prose: 本文の段落。フィールド: text
@@ -52,7 +52,7 @@ const READ_ONLY_TOOLS = ["Read", "Grep", "Glob", "WebFetch", "WebSearch"];
 
 export type RespondResult =
   | { kind: "answer"; nodeId: string | null; answer: string; sessionId: string }
-  | { kind: "edit"; nodeId: string; node: Node; sessionId: string };
+  | { kind: "edit"; nodeId: string; edits: Edit[]; sessionId: string };
 
 export async function respond(
   nodes: Node[],
@@ -73,9 +73,20 @@ export async function respond(
 質問の場合: 1行目に "ANSWER <部品のid>" と書き、2行目以降に日本語で回答を書いてください。
 回答は結論から書き、要点に絞ってください。注意書きや但し書きは短くし、大半を本題にあててください。
 説明を求められた場合は概要を返し、詳しい説明は明示的に求められたときだけ書いてください。
-指示の場合: 1行目に "EDIT <部品のid>" と書き、2行目以降に書き換えた後のフィールドだけをJSONオブジェクトとして書いてください（type, idは含めない）。
+指示の場合: 1行目に "EDIT" とだけ書き、2行目以降に編集内容をJSON配列で書いてください。
+配列の各要素は { "id": 書き換える部品のid, "nodes": 置き換え後の部品の配列 } の形にします。
+その部品があった場所が nodes の並びで置き換わります。nodesの各要素は { "type": 部品名, ...フィールド } の形で、
+idは付けないでください（こちら側で採番します）。
 
-idは必ず下記の部品一覧にあるものを1つ選んでください。
+nodesの使い分け:
+- 1つだけ入れる: その部品を書き換える。typeを変えて別の部品にしてもよい
+- 複数入れる: その部品が複数の部品に分かれる。部品を増やしたいときに使う
+- 空配列にする: その部品を削除する
+
+離れた場所の部品をまとめて直したいときは、配列に要素を複数並べてください。
+関係のない部品は配列に入れないでください。入れなかった部品はそのまま残ります。
+
+idは必ず下記の部品一覧にあるものを使ってください。
 説明文やコードブロックの \`\`\` は不要です（EDITのJSON部分を除く）。
 ${OUTPUT_DISCIPLINE}
 
@@ -90,23 +101,30 @@ ${message}`;
     allowedTools: READ_ONLY_TOOLS,
   });
   const { kind, nodeId, body } = splitHeaderAndBody(result);
-  const target = nodes.find((n) => n.id === nodeId);
-
-  if (target === undefined) {
-    return {
-      kind: "answer",
-      nodeId: null,
-      answer: kind === "EDIT" ? "対象の部品を特定できませんでした" : body,
-      sessionId,
-    };
-  }
 
   if (kind === "EDIT") {
-    const json = extractFencedContent(body) ?? body;
-    const newFields = JSON.parse(json) as Record<string, unknown>;
-    return { kind: "edit", nodeId: target.id, node: { ...target, ...newFields } as Node, sessionId };
+    const edits = parseEdits(body, nodes);
+    if (edits === null) {
+      return { kind: "answer", nodeId: null, answer: "対象の部品を特定できませんでした", sessionId };
+    }
+    return { kind: "edit", nodeId: edits[0].id, edits, sessionId };
   }
-  return { kind: "answer", nodeId: target.id, answer: body, sessionId };
+
+  const target = nodes.find((n) => n.id === nodeId);
+  return { kind: "answer", nodeId: target?.id ?? null, answer: body, sessionId };
+}
+
+// 1つ目は元のidを引き継ぐ。スレッドの紐づけと再生成時のid継承を保つため
+function parseEdits(body: string, nodes: Node[]): Edit[] | null {
+  const json = extractFencedContent(body) ?? body;
+  const raw = JSON.parse(json) as Array<{ id: string; nodes: Array<Record<string, unknown>> }>;
+  if (raw.length === 0 || !raw.every((e) => nodes.some((n) => n.id === e.id))) {
+    return null;
+  }
+  return raw.map((e) => ({
+    id: e.id,
+    nodes: e.nodes.map((n, i) => ({ ...n, id: i === 0 ? e.id : randomUUID() }) as Node),
+  }));
 }
 
 function splitHeaderAndBody(text: string): { kind: string; nodeId: string; body: string } {

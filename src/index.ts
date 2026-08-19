@@ -1,7 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { createServer } from "./server.js";
 import { buildTree, respond } from "./render.js";
-import { renderTree, replaceNode, reconcileIds, type Node } from "./tree.js";
+import { renderTree, applyEdits, reconcileIds, type Node } from "./tree.js";
 import { createThread, appendMessage, setTarget, type Thread } from "./thread.js";
 
 const DOC_PATH = "doc.json";
@@ -63,7 +63,7 @@ async function applyRespond(thread: Thread, message: string): Promise<{ thread: 
 
   let answer: string;
   if (result.kind === "edit") {
-    nodes = replaceNode(nodes, result.nodeId, result.node);
+    nodes = applyEdits(nodes, result.edits);
     await saveTree(nodes);
     answer = "反映しました";
   } else {
