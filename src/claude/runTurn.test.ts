@@ -36,6 +36,19 @@ describe("runTurn", () => {
   );
 
   it(
+    "allowedToolsで許可したツールは実際に使える",
+    async () => {
+      const { result } = await runTurn(
+        "package.jsonを読んで、nameフィールドの値だけを答えて",
+        { allowedTools: ["Read"] },
+      );
+
+      expect(result).toContain("htllm");
+    },
+    60000,
+  );
+
+  it(
     "resumeSessionIdを指定して2回連続で呼ぶと、2回目も同じsessionIdが返る",
     async () => {
       const first = await runTurn("1+1は？数字だけ答えて");

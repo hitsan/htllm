@@ -123,6 +123,19 @@ describe("respond", () => {
     runTurnMock.mockReset();
   });
 
+  it("読み取り系ツールだけを許可してrunTurnを呼ぶ", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "ANSWER a2\n回答です",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    await respond(doc, "質問文");
+
+    const [, options] = runTurnMock.mock.calls[0];
+    expect(options.allowedTools).toEqual(["Read", "Grep", "Glob", "WebFetch", "WebSearch"]);
+  });
+
   it("ページ全体の部品をidつきでプロンプトに含める", async () => {
     runTurnMock.mockResolvedValue({
       result: "ANSWER a2\n回答です",
