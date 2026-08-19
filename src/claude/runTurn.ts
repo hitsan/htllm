@@ -7,21 +7,38 @@ export type RunTurnResult = {
   stopReason: string;
 };
 
+const ALL_TOOLS = [
+  "Bash",
+  "Edit",
+  "Write",
+  "Read",
+  "Glob",
+  "Grep",
+  "WebFetch",
+  "WebSearch",
+  "Task",
+  "NotebookEdit",
+];
+
 export function runTurn(
   prompt: string,
-  options?: { resumeSessionId?: string },
+  options?: { resumeSessionId?: string; allowedTools?: string[] },
 ): Promise<RunTurnResult> {
+  // プロンプトにはページの内容（元テキスト由来）が入る。その文言でツールを
+  // 動かされないよう、許可リスト方式で呼び出し側に明示させる。既定は全封じ
+  const allowed = options?.allowedTools ?? [];
   const args = [
     "-p",
     prompt,
     "--output-format",
     "stream-json",
     "--verbose",
-    // このタスクはテキスト変換だけでツールを必要としない。誤ってツールを
-    // 実行したりツール前提の応答を混ぜたりしないよう明示的に封じる
     "--disallowedTools",
-    "Bash,Edit,Write,Read,Glob,Grep,WebFetch,WebSearch,Task,NotebookEdit",
+    ALL_TOOLS.filter((t) => !allowed.includes(t)).join(","),
   ];
+  if (allowed.length > 0) {
+    args.push("--allowedTools", allowed.join(","));
+  }
   if (options?.resumeSessionId) {
     args.push("--resume", options.resumeSessionId);
   }

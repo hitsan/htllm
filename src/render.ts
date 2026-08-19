@@ -46,6 +46,10 @@ ${inputText}`;
   return raw.map((n) => ({ id: randomUUID(), ...n }) as Node);
 }
 
+// 質問に答えるにはコードや外部情報を参照できたほうがよい。ただしページの内容は
+// 元テキスト由来なので、書き込み・実行系は渡さず読み取りだけに限る
+const READ_ONLY_TOOLS = ["Read", "Grep", "Glob", "WebFetch", "WebSearch"];
+
 export type RespondResult =
   | { kind: "answer"; nodeId: string | null; answer: string; sessionId: string }
   | { kind: "edit"; nodeId: string; node: Node; sessionId: string };
@@ -81,7 +85,10 @@ ${parts}
 メッセージ:
 ${message}`;
 
-  const { result, sessionId } = await runTurn(prompt, resumeSessionId ? { resumeSessionId } : undefined);
+  const { result, sessionId } = await runTurn(prompt, {
+    ...(resumeSessionId ? { resumeSessionId } : {}),
+    allowedTools: READ_ONLY_TOOLS,
+  });
   const { kind, nodeId, body } = splitHeaderAndBody(result);
   const target = nodes.find((n) => n.id === nodeId);
 
