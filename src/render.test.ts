@@ -170,9 +170,9 @@ describe("respond", () => {
     });
   });
 
-  it("EDIT応答なら推測された部品のフィールドを差し替えて返す", async () => {
+  it("EDIT応答をid付きのeditsとして取り出し、1つ目は元のidを引き継ぐ", async () => {
     runTurnMock.mockResolvedValue({
-      result: 'EDIT a2\n{"text":"新しい本文"}',
+      result: 'EDIT\n[{"id":"a2","nodes":[{"type":"prose","text":"新しい本文"}]}]',
       sessionId: "session-abc",
       stopReason: "end_turn",
     });
@@ -182,47 +182,88 @@ describe("respond", () => {
     expect(result).toEqual({
       kind: "edit",
       nodeId: "a2",
-      node: { id: "a2", type: "prose", text: "新しい本文" },
+      edits: [{ id: "a2", nodes: [{ id: "a2", type: "prose", text: "新しい本文" }] }],
       sessionId: "session-abc",
     });
   });
 
+  it("nodesが複数なら2つ目以降に新しいidを採番する", async () => {
+    runTurnMock.mockResolvedValue({
+      result:
+        'EDIT\n[{"id":"a2","nodes":[{"type":"prose","text":"前半"},{"type":"prose","text":"後半"}]}]',
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const result = await respond(doc, "2つに分けて");
+
+    if (result.kind !== "edit") throw new Error("expected edit");
+    const ids = result.edits[0].nodes.map((n) => n.id);
+    expect(ids[0]).toBe("a2");
+    expect(ids[1]).not.toBe("a2");
+    expect(new Set(ids).size).toBe(2);
+  });
+
+  it("nodesが空配列なら削除としてそのまま返す", async () => {
+    runTurnMock.mockResolvedValue({
+      result: 'EDIT\n[{"id":"a2","nodes":[]}]',
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const result = await respond(doc, "消して");
+
+    expect(result.kind === "edit" && result.edits).toEqual([{ id: "a2", nodes: [] }]);
+  });
+
+  it("離れた複数の部品への編集をまとめて返す", async () => {
+    runTurnMock.mockResolvedValue({
+      result:
+        'EDIT\n[{"id":"a1","nodes":[{"type":"heading","text":"新見出し"}]},{"id":"a3","nodes":[]}]',
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const result = await respond(doc, "見出しを直してカードを消して");
+
+    expect(result.kind === "edit" && result.edits).toEqual([
+      { id: "a1", nodes: [{ id: "a1", type: "heading", text: "新見出し" }] },
+      { id: "a3", nodes: [] },
+    ]);
+  });
+
   it("EDIT応答の```json コードフェンスで包まれていても中身をパースする", async () => {
     runTurnMock.mockResolvedValue({
-      result: 'EDIT a2\n```json\n{"text":"新しい本文"}\n```',
+      result: 'EDIT\n```json\n[{"id":"a2","nodes":[{"type":"prose","text":"新しい本文"}]}]\n```',
       sessionId: "session-1",
       stopReason: "end_turn",
     });
 
     const result = await respond(doc, "指示");
 
-    expect(result.kind === "edit" && result.node).toEqual({
-      id: "a2",
-      type: "prose",
-      text: "新しい本文",
-    });
+    expect(result.kind === "edit" && result.edits[0].nodes).toEqual([
+      { id: "a2", type: "prose", text: "新しい本文" },
+    ]);
   });
 
   it("複数フィールドを持つ部品(card)でも、返り値のフィールドをまとめて差し替える", async () => {
     runTurnMock.mockResolvedValue({
-      result: 'EDIT a3\n{"title":"新見出し","text":"新本文"}',
+      result:
+        'EDIT\n[{"id":"a3","nodes":[{"type":"card","title":"新見出し","text":"新本文"}]}]',
       sessionId: "session-1",
       stopReason: "end_turn",
     });
 
     const result = await respond(doc, "見出しと本文を書き換えて");
 
-    expect(result.kind === "edit" && result.node).toEqual({
-      id: "a3",
-      type: "card",
-      title: "新見出し",
-      text: "新本文",
-    });
+    expect(result.kind === "edit" && result.edits[0].nodes).toEqual([
+      { id: "a3", type: "card", title: "新見出し", text: "新本文" },
+    ]);
   });
 
   it("存在しないidを返してきたら、落ちずにその旨をanswerとして返す", async () => {
     runTurnMock.mockResolvedValue({
-      result: 'EDIT zzz\n{"text":"新しい本文"}',
+      result: 'EDIT\n[{"id":"zzz","nodes":[{"type":"prose","text":"新しい本文"}]}]',
       sessionId: "session-1",
       stopReason: "end_turn",
     });
