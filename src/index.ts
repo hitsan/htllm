@@ -58,11 +58,25 @@ if (inputPath) {
 type PendingResult = { answer: string; jsx: string };
 const pendingAnswers = new Map<string, PendingResult | null>();
 
+// 1世代だけ。EDITの誤爆に気づくのは操作直後なので、直前の状態だけ戻せれば足りる
+let previousNodes: Node[] | null = null;
+
+async function onUndo(): Promise<{ jsx: string; canUndo: boolean } | null> {
+  if (previousNodes === null) {
+    return null;
+  }
+  nodes = previousNodes;
+  previousNodes = null;
+  await saveTree(nodes);
+  return { jsx: toJsx(nodes), canUndo: false };
+}
+
 async function applyRespond(thread: Thread, message: string): Promise<{ thread: Thread; answer: string }> {
   const result = await respond(nodes, message, thread.sessionId);
 
   let answer: string;
   if (result.kind === "edit") {
+    previousNodes = nodes;
     nodes = applyEdits(nodes, result.edits);
     await saveTree(nodes);
     answer = "反映しました";
@@ -93,7 +107,7 @@ async function resolveAnswer(thread: Thread, message: string): Promise<void> {
   pendingAnswers.set(thread.id, { answer, jsx: toJsx(nodes) });
 }
 
-async function onCreateThread(params: { message: string }): Promise<{ threadId: string; jsx: string }> {
+async function onCreateThread(params: { message: string }): Promise<{ threadId: string; jsx: string; canUndo: boolean }> {
   let thread = createThread();
   thread = appendMessage(thread, "user", params.message);
   threads = [...threads, thread];
@@ -102,20 +116,20 @@ async function onCreateThread(params: { message: string }): Promise<{ threadId: 
   pendingAnswers.set(thread.id, null);
   resolveAnswer(thread, params.message);
 
-  return { threadId: thread.id, jsx: toJsx(nodes) };
+  return { threadId: thread.id, jsx: toJsx(nodes), canUndo: previousNodes !== null };
 }
 
 async function onGetThread(
   threadId: string,
-): Promise<{ pending: boolean; answer: string; jsx: string } | null> {
+): Promise<{ pending: boolean; answer: string; jsx: string; canUndo: boolean } | null> {
   if (!pendingAnswers.has(threadId)) {
     return null;
   }
   const result = pendingAnswers.get(threadId)!;
   if (result === null) {
-    return { pending: true, answer: "", jsx: toJsx(nodes) };
+    return { pending: true, answer: "", jsx: toJsx(nodes), canUndo: previousNodes !== null };
   }
-  return { pending: false, answer: result.answer, jsx: result.jsx };
+  return { pending: false, answer: result.answer, jsx: result.jsx, canUndo: previousNodes !== null };
 }
 
 async function onListThreads(): Promise<Omit<Thread, "sessionId">[]> {
@@ -132,7 +146,7 @@ async function onDeleteThread(threadId: string): Promise<{ jsx: string } | null>
   return { jsx: toJsx(nodes) };
 }
 
-async function onReply(threadId: string, message: string): Promise<{ jsx: string; answer: string }> {
+async function onReply(threadId: string, message: string): Promise<{ jsx: string; answer: string; canUndo: boolean }> {
   const thread = threads.find((t) => t.id === threadId);
   if (!thread) {
     throw new Error(`thread not found: ${threadId}`);
@@ -145,13 +159,13 @@ async function onReply(threadId: string, message: string): Promise<{ jsx: string
   threads = threads.map((t) => (t.id === threadId ? updated : t));
   await saveThreads(threads);
 
-  return { jsx: toJsx(nodes), answer: applied.answer };
+  return { jsx: toJsx(nodes), answer: applied.answer, canUndo: previousNodes !== null };
 }
 
 const jsx = toJsx(nodes);
 
 const port = 3000;
-const server = createServer(jsx, onCreateThread, onReply, onGetThread, onDeleteThread, onListThreads);
+const server = createServer(jsx, onCreateThread, onReply, onGetThread, onDeleteThread, onListThreads, onUndo);
 server.listen(port, () => {
   console.log(`Listening on http://localhost:${port}`);
 });
