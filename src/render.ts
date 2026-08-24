@@ -127,6 +127,14 @@ idは必ず下記の部品一覧にあるものを使ってください。
 説明文やコードブロックの \`\`\` は不要です（EDITのJSON部分を除く）。
 ${OUTPUT_DISCIPLINE}
 
+書き換え後の部品も、新しく作る部品と同じ基準で選んでください。
+${SELECTION_RULE}
+
+利用可能な部品:
+${COMPONENT_CATALOG}
+
+${SVG_GUIDE}
+
 ページの部品:
 ${parts}
 

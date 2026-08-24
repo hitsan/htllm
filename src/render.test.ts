@@ -187,6 +187,27 @@ describe("respond", () => {
     expect(prompt).toContain("質問文");
   });
 
+  // EDITでtypeを変えさせる以上、部品一覧とフィールド定義が要る。
+  // 優先度も渡さないと、書き換えのたびにproseへ退行していく
+  it("部品カタログと3段の優先度、SVGの書き方をプロンプトに含める", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "ANSWER a2\n回答です",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    await respond(doc, "質問文");
+
+    const [prompt] = runTurnMock.mock.calls[0];
+    expect(prompt).toContain("timeline");
+    expect(prompt).toContain("mockup");
+    expect(prompt).toContain("recommendation");
+    expect(prompt).toContain("グラフィカル");
+    expect(prompt).toContain("上の段から順に");
+    expect(prompt).toContain("viewBox");
+    expect(prompt).toContain("aria-label");
+  });
+
   it("ANSWER応答から対象idと回答を取り出す", async () => {
     runTurnMock.mockResolvedValue({
       result: "ANSWER a2\n回答です",
