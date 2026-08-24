@@ -99,6 +99,23 @@ describe("buildTree", () => {
     ]);
   });
 
+  it("SVGの書き方の決まりをプロンプトに含める", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "[]",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    await buildTree("入力");
+
+    const [prompt] = runTurnMock.mock.calls[0];
+    expect(prompt).toContain("viewBox");
+    expect(prompt).toContain("矢印");
+    expect(prompt).toContain("グリッド");
+    expect(prompt).toContain("aria-label");
+    expect(prompt).toContain("foreignObject");
+  });
+
   it("作業ディレクトリ等のメタな言及を禁止する指示を含む", async () => {
     runTurnMock.mockResolvedValue({
       result: "[]",
