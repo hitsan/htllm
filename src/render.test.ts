@@ -99,6 +99,22 @@ describe("buildTree", () => {
     ]);
   });
 
+  it("部品を3段階の優先度で提示し、上の段から順に検討させる", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "[]",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    await buildTree("入力");
+
+    const [prompt] = runTurnMock.mock.calls[0];
+    expect(prompt).toContain("グラフィカル");
+    expect(prompt).toContain("構造化");
+    expect(prompt).toContain("上の段から順に");
+    expect(prompt).toContain("読み取れない");
+  });
+
   it("SVGの書き方の決まりをプロンプトに含める", async () => {
     runTurnMock.mockResolvedValue({
       result: "[]",

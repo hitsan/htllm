@@ -2,23 +2,34 @@ import { randomUUID } from "node:crypto";
 import { runTurn } from "./claude/runTurn.js";
 import type { Edit, Node } from "./tree.js";
 
-const COMPONENT_CATALOG = `- heading: 節や文書の見出し。フィールド: text, badge?（章番号や短いラベル。任意）
-- prose: 本文の段落。フィールド: text
-- steps: 順序のある手順・工程。フィールド: items（文字列の配列）
-- callout: 注記・警告・ポイントの強調。フィールド: text
-- table: 比較・一覧の表。フィールド: headers（列見出しの配列）, rows（行の配列。各行は文字列の配列）
-- codeblock: コードや設定の断片。フィールド: code
-- card: 見出し＋本文のまとまり。フィールド: title, text
-- diagram: 箱を矢印でつないだ簡単な関係図。フィールド: nodes（箱のラベルの配列。順につながる）
-- hero: 文書やセクションの導入。フィールド: eyebrow（短い文脈ラベル）, title（大見出し）, lede（リード文）
-- compare: 2案の対比。フィールド: left, right（それぞれ { label, text, tone }。toneは"bad"|"good"|"neutral"）
+const SELECTION_RULE = `部品は表現力の順に3つの段に分かれています。上の段から順に検討し、その段では表せない場合だけ下の段に落としてください。
+文章の段（第3段）は、図にも構造にもできない内容にだけ使ってください。
+ただし、元テキストから読み取れない関係・順序・数値を補って図にしてはいけません。読み取れないなら下の段に落としてください。`;
+
+const COMPONENT_CATALOG = `【第1段：グラフィカル】関係・順序・変化・見た目があるとき
+- svg: ほかの部品では表せない図。SVGマークアップを直接書く。分岐のある流れ、階層、位置関係、量の大小など、一目で見せたい構造に使う。フィールド: svg（\`<svg>\`から始まるマークアップ。書き方は後述）, caption（図が何を示しているかの一言）
 - flow: 役割付きの処理フロー図。フィールド: nodes（{ label, value, sub?, role } の配列。roleは"input"|"core"|"output"|"neutral"）
-- gallery: 同種の項目のカード一覧。フィールド: items（{ title, text } の配列）
+- diagram: 箱を矢印でつないだ簡単な関係図。フィールド: nodes（箱のラベルの配列。順につながる）
 - timeline: 番号付きの手順・経過。フィールド: steps（{ title, text, emphasis? } の配列。emphasisは重要なステップをtrueにする）
-- recommendation: 結論・推奨のまとめ。フィールド: title, items（文字列の配列）
-- qa: 論点・Q&Aの一覧。フィールド: items（{ label, text } の配列）
 - mockup: UIの見た目そのものの簡易モックアップ。フィールド: lines（{ kind, text } の配列。kindは"quote"|"label"|"answer"|"input"|"button"|"note"）
-- svg: ほかの部品では表せない図。SVGマークアップを直接書く。分岐のある流れ、階層、位置関係、量の大小など、一目で見せたい構造に使う。フィールド: svg（\`<svg>\`から始まるマークアップ。書き方は後述）, caption（図が何を示しているかの一言）`;
+
+【第2段：構造化】複数の項目が並列・対比・一覧にできるとき
+- compare: 2案の対比。フィールド: left, right（それぞれ { label, text, tone }。toneは"bad"|"good"|"neutral"）
+- table: 比較・一覧の表。フィールド: headers（列見出しの配列）, rows（行の配列。各行は文字列の配列）
+- gallery: 同種の項目のカード一覧。フィールド: items（{ title, text } の配列）
+- qa: 論点・Q&Aの一覧。フィールド: items（{ label, text } の配列）
+- steps: 順序のある手順・工程。フィールド: items（文字列の配列）
+- recommendation: 結論・推奨のまとめ。フィールド: title, items（文字列の配列）
+
+【第3段：文章】上の2段で構造を作れない内容だけ
+- prose: 本文の段落。フィールド: text
+- callout: 注記・警告・ポイントの強調。フィールド: text
+- card: 見出し＋本文のまとまり。フィールド: title, text
+- codeblock: コードや設定の断片。フィールド: code
+
+【文書の骨格】段の外。説明の形式ではないので必要な箇所に置く
+- heading: 節や文書の見出し。フィールド: text, badge?（章番号や短いラベル。任意）
+- hero: 文書やセクションの導入。フィールド: eyebrow（短い文脈ラベル）, title（大見出し）, lede（リード文）`;
 
 const SVG_GUIDE = `svg部品を使うときの決まり:
 
@@ -52,6 +63,8 @@ idは付けないでください（こちら側で採番します）。説明文
 1つの部品が持つテキストは日本語150字程度まで、一文は40〜60字までです。
 元テキストの段落がこれを超える場合は、文を圧縮せずに要点ごとの複数の部品に分割してください。
 ${OUTPUT_DISCIPLINE}
+
+${SELECTION_RULE}
 
 利用可能な部品:
 ${COMPONENT_CATALOG}
