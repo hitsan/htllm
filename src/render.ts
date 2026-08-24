@@ -17,7 +17,8 @@ const COMPONENT_CATALOG = `- heading: 節や文書の見出し。フィールド
 - timeline: 番号付きの手順・経過。フィールド: steps（{ title, text, emphasis? } の配列。emphasisは重要なステップをtrueにする）
 - recommendation: 結論・推奨のまとめ。フィールド: title, items（文字列の配列）
 - qa: 論点・Q&Aの一覧。フィールド: items（{ label, text } の配列）
-- mockup: UIの見た目そのものの簡易モックアップ。フィールド: lines（{ kind, text } の配列。kindは"quote"|"label"|"answer"|"input"|"button"|"note"）`;
+- mockup: UIの見た目そのものの簡易モックアップ。フィールド: lines（{ kind, text } の配列。kindは"quote"|"label"|"answer"|"input"|"button"|"note"）
+- svg: ほかの部品では表せない図。SVGマークアップを直接書く。分岐のある流れ、階層、位置関係、量の大小など、一目で見せたい構造に使う。フィールド: svg（\`<svg viewBox="0 0 幅 高さ">\`から始まるマークアップ。width/height属性は書かない。色はページのCSS変数（var(--accent), var(--ink), var(--muted), var(--border), var(--surface-sunken)）かcurrentColorを使い、生の色名や#RRGGBBは書かない。図の中の文字は短いラベルだけにして、説明文は書かない）, caption（図が何を示しているかの一言）`;
 
 const OUTPUT_DISCIPLINE = `作業ディレクトリ・使用可能なツール・セッションの状態など、このタスクに無関係な内容は一切書かないでください。求められた出力だけを返してください。`;
 

@@ -82,6 +82,7 @@ describe("buildTree", () => {
     expect(prompt).toContain("recommendation");
     expect(prompt).toContain("qa");
     expect(prompt).toContain("mockup");
+    expect(prompt).toContain("svg");
   });
 
   it("text以外のフィールドを持つ部品(steps)もそのままNode化する", async () => {

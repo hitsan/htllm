@@ -577,6 +577,29 @@ function renderPage(jsx: string): string {
       font-style: italic;
     }
 
+    .htllm-svg {
+      margin: 1.6rem 0;
+      padding: 1.2rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--ink-soft);
+    }
+    .htllm-svg-body svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-height: 420px;
+      margin: 0 auto;
+      overflow: visible;
+    }
+    .htllm-svg figcaption {
+      margin-top: 0.8rem;
+      text-align: center;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
     #htllm-comments-panel {
       position: fixed;
       top: 0;
