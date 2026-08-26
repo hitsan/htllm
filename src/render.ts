@@ -118,6 +118,7 @@ export async function respond(
 回答の中で最も伝えたい語句を1つだけ選び、\`**\`で囲んで強調してください。2箇所以上は強調しないでください。
 前置き、質問の言い換え、末尾のまとめは書かないでください。
 説明が長くなる場合は要点だけ返し、続きは改めて求められてから書いてください。
+短くする指示を守るあまり、1行目だけで終わらせないでください。2行目以降を必ず書いてください。
 指示の場合: 1行目に "EDIT" とだけ書き、2行目以降に編集内容をJSON配列で書いてください。
 配列の各要素は { "id": 書き換える部品のid, "nodes": 置き換え後の部品の配列 } の形にします。
 その部品があった場所が nodes の並びで置き換わります。nodesの各要素は { "type": 部品名, ...フィールド } の形で、
@@ -164,7 +165,9 @@ ${message}`;
   }
 
   const target = nodes.find((n) => n.id === nodeId);
-  return { kind: "answer", nodeId: target?.id ?? null, answer: body, sessionId };
+  // 1行目だけ返されることがある。空のまま保存するとチャットに空の吹き出しが残る
+  const answer = body === "" ? "うまく答えられませんでした。もう一度聞いてください。" : body;
+  return { kind: "answer", nodeId: target?.id ?? null, answer, sessionId };
 }
 
 // 1つ目は元のidを引き継ぐ。スレッドの紐づけと再生成時のid継承を保つため
