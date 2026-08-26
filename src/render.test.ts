@@ -82,6 +82,7 @@ describe("buildTree", () => {
     expect(prompt).toContain("recommendation");
     expect(prompt).toContain("qa");
     expect(prompt).toContain("mockup");
+    expect(prompt).toContain("svg");
   });
 
   it("text以外のフィールドを持つ部品(steps)もそのままNode化する", async () => {
@@ -96,6 +97,39 @@ describe("buildTree", () => {
     expect(nodes.map(({ id, ...rest }) => rest)).toEqual([
       { type: "steps", items: ["準備する", "実行する"] },
     ]);
+  });
+
+  it("部品を3段階の優先度で提示し、上の段から順に検討させる", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "[]",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    await buildTree("入力");
+
+    const [prompt] = runTurnMock.mock.calls[0];
+    expect(prompt).toContain("グラフィカル");
+    expect(prompt).toContain("構造化");
+    expect(prompt).toContain("上の段から順に");
+    expect(prompt).toContain("読み取れない");
+  });
+
+  it("SVGの書き方の決まりをプロンプトに含める", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "[]",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    await buildTree("入力");
+
+    const [prompt] = runTurnMock.mock.calls[0];
+    expect(prompt).toContain("viewBox");
+    expect(prompt).toContain("矢印");
+    expect(prompt).toContain("グリッド");
+    expect(prompt).toContain("aria-label");
+    expect(prompt).toContain("foreignObject");
   });
 
   it("作業ディレクトリ等のメタな言及を禁止する指示を含む", async () => {
@@ -151,6 +185,27 @@ describe("respond", () => {
     expect(prompt).toContain("導入");
     expect(prompt).toContain("古い本文");
     expect(prompt).toContain("質問文");
+  });
+
+  // EDITでtypeを変えさせる以上、部品一覧とフィールド定義が要る。
+  // 優先度も渡さないと、書き換えのたびにproseへ退行していく
+  it("部品カタログと3段の優先度、SVGの書き方をプロンプトに含める", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "ANSWER a2\n回答です",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    await respond(doc, "質問文");
+
+    const [prompt] = runTurnMock.mock.calls[0];
+    expect(prompt).toContain("timeline");
+    expect(prompt).toContain("mockup");
+    expect(prompt).toContain("recommendation");
+    expect(prompt).toContain("グラフィカル");
+    expect(prompt).toContain("上の段から順に");
+    expect(prompt).toContain("viewBox");
+    expect(prompt).toContain("aria-label");
   });
 
   it("ANSWER応答から対象idと回答を取り出す", async () => {

@@ -22,10 +22,20 @@ export type Node =
   | { id: string; type: "timeline"; steps: TimelineStep[] }
   | { id: string; type: "recommendation"; title: string; items: string[] }
   | { id: string; type: "qa"; items: QaItem[] }
-  | { id: string; type: "mockup"; lines: MockupLine[] };
+  | { id: string; type: "mockup"; lines: MockupLine[] }
+  | { id: string; type: "svg"; svg: string; caption: string };
 
 function lit(text: string): string {
   return `{${JSON.stringify(text)}}`;
+}
+
+// SVGだけは中身を組み立てずLLMの書いたマークアップをそのまま埋める。JSXとして
+// 解釈させるとBabelのトランスパイルが落ちてページ全体が死ぬので、innerHTMLで渡す。
+// ponytail: 実行可能な要素だけ落とす最小の除去。ローカル配信前提で完全なサニタイザは入れない
+function sanitizeSvg(svg: string): string {
+  return svg
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
 }
 
 export function renderNode(node: Node): string {
@@ -102,6 +112,10 @@ export function renderNode(node: Node): string {
         .join("");
       return `<div data-node-id="${node.id}" className="htllm-mockup">${lines}</div>`;
     }
+    case "svg": {
+      const body = `<div className="htllm-svg-body" dangerouslySetInnerHTML={{__html: ${JSON.stringify(sanitizeSvg(node.svg))}}} />`;
+      return `<figure data-node-id="${node.id}" className="htllm-svg">${body}<figcaption>${lit(node.caption)}</figcaption></figure>`;
+    }
   }
 }
 
@@ -137,6 +151,9 @@ export function nodeToText(node: Node): string {
       return node.items.map((it) => `${it.label}: ${it.text}`).join("\n");
     case "mockup":
       return node.lines.map((l) => l.text).join("\n");
+    // SVG本体は再生成のたびに座標が揺れるため、id引き継ぎの鍵にはcaptionだけを使う
+    case "svg":
+      return node.caption;
   }
 }
 

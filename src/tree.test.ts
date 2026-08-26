@@ -254,6 +254,46 @@ describe("renderNode", () => {
         '</div>',
     );
   });
+
+  it("svgノードをそのまま埋め込むfigureのJSXにする", () => {
+    const jsx = renderNode({
+      id: "sv1",
+      type: "svg",
+      svg: '<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" /></svg>',
+      caption: "円ひとつ",
+    });
+
+    expect(jsx).toBe(
+      '<figure data-node-id="sv1" className="htllm-svg">' +
+        '<div className="htllm-svg-body" dangerouslySetInnerHTML={{__html: ' +
+        '"<svg viewBox=\\"0 0 10 10\\"><circle cx=\\"5\\" cy=\\"5\\" r=\\"4\\" /></svg>"' +
+        "}} />" +
+        '<figcaption>{"円ひとつ"}</figcaption>' +
+        "</figure>",
+    );
+  });
+
+  it("svgノードからscriptタグを除去する", () => {
+    const jsx = renderNode({
+      id: "sv2",
+      type: "svg",
+      svg: '<svg><script>alert(1)</script><rect /></svg>',
+      caption: "図",
+    });
+
+    expect(jsx).toContain('"<svg><rect /></svg>"');
+  });
+
+  it("svgノードからonから始まるイベント属性を除去する", () => {
+    const jsx = renderNode({
+      id: "sv3",
+      type: "svg",
+      svg: '<svg><rect onclick="alert(1)" onload=\'x()\' fill="red" /></svg>',
+      caption: "図",
+    });
+
+    expect(jsx).toContain('"<svg><rect fill=\\"red\\" /></svg>"');
+  });
 });
 
 describe("renderTree", () => {
@@ -406,6 +446,18 @@ describe("nodeToText", () => {
     });
 
     expect(text).toBe("引用\n続けて聞く");
+  });
+
+  // SVG本体は再生成のたびに座標が揺れるため、id引き継ぎの鍵にはcaptionを使う
+  it("svgはcaptionだけを返す", () => {
+    const text = nodeToText({
+      id: "sv1",
+      type: "svg",
+      svg: '<svg><circle r="4" /></svg>',
+      caption: "円ひとつ",
+    });
+
+    expect(text).toBe("円ひとつ");
   });
 });
 
