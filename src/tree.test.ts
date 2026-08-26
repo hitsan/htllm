@@ -1,5 +1,44 @@
 import { describe, it, expect } from "vitest";
-import { renderNode, renderTree, applyEdits, reconcileIds, nodeToText, type Node } from "./tree.js";
+import { renderNode, renderTree, applyEdits, reconcileIds, nodeToText, diffLines, type Node } from "./tree.js";
+
+describe("diffLines", () => {
+  it("変更がなければ全行を同じ行に並べる", () => {
+    expect(diffLines("a\nb", "a\nb")).toEqual([
+      { left: "a", right: "a", kind: "same" },
+      { left: "b", right: "b", kind: "same" },
+    ]);
+  });
+
+  it("追加された行は右だけに置く", () => {
+    expect(diffLines("a", "a\nb")).toEqual([
+      { left: "a", right: "a", kind: "same" },
+      { left: null, right: "b", kind: "add" },
+    ]);
+  });
+
+  it("削除された行は左だけに置く", () => {
+    expect(diffLines("a\nb", "a")).toEqual([
+      { left: "a", right: "a", kind: "same" },
+      { left: "b", right: null, kind: "del" },
+    ]);
+  });
+
+  it("書き換えられた行は同じ行に左右で並べる", () => {
+    expect(diffLines("a\nx\nc", "a\ny\nc")).toEqual([
+      { left: "a", right: "a", kind: "same" },
+      { left: "x", right: "y", kind: "change" },
+      { left: "c", right: "c", kind: "same" },
+    ]);
+  });
+
+  it("前後に変更がなく中間だけ増えた場合も対応づけられる", () => {
+    expect(diffLines("a\nc", "a\nb\nc")).toEqual([
+      { left: "a", right: "a", kind: "same" },
+      { left: null, right: "b", kind: "add" },
+      { left: "c", right: "c", kind: "same" },
+    ]);
+  });
+});
 
 describe("renderNode", () => {
   it("proseノードをdata-node-id付きの段落JSXにする", () => {
@@ -72,7 +111,7 @@ describe("renderNode", () => {
     const jsx = renderNode({ id: "cb1", type: "codeblock", code: "const x = 1;" });
 
     expect(jsx).toBe(
-      '<pre data-node-id="cb1"><code>{"const x = 1;"}</code></pre>',
+      '<div data-node-id="cb1" className="htllm-code"><pre><code>{"const x = 1;"}</code></pre></div>',
     );
   });
 
@@ -253,6 +292,72 @@ describe("renderNode", () => {
         '<div className="htllm-mockup-line" data-kind={"button"}>{"続けて聞く"}</div>' +
         '</div>',
     );
+  });
+
+  it("codeblockにlangがあればhighlight.js用のクラスを付ける", () => {
+    const jsx = renderNode({ id: "cb1", type: "codeblock", code: "const a = 1;", lang: "ts" });
+
+    expect(jsx).toContain('data-node-id="cb1"');
+    expect(jsx).toContain('className="language-ts"');
+    expect(jsx).toContain('{"const a = 1;"}');
+  });
+
+  it("codeblockにfilenameがあれば見出しとして出す", () => {
+    const jsx = renderNode({ id: "cb2", type: "codeblock", code: "x", filename: "src/tree.ts" });
+
+    expect(jsx).toContain('className="htllm-code-name"');
+    expect(jsx).toContain('{"src/tree.ts"}');
+  });
+
+  it("codeblockはlangもfilenameもなくても描画できる", () => {
+    const jsx = renderNode({ id: "cb3", type: "codeblock", code: "x" });
+
+    expect(jsx).toContain('data-node-id="cb3"');
+    expect(jsx).not.toContain("htllm-code-name");
+  });
+
+  it("diffノードを1カラムのunified行に展開する", () => {
+    const jsx = renderNode({
+      id: "d1",
+      type: "diff",
+      filename: "a.ts",
+      before: "a\nx",
+      after: "a\ny",
+    });
+
+    expect(jsx).toContain('data-node-id="d1"');
+    expect(jsx).toContain('{"a.ts"}');
+    // 書き換えはunifiedでは削除行と追加行の2行に分かれる
+    expect(jsx).toContain('data-kind={"del"}');
+    expect(jsx).toContain('data-kind={"add"}');
+    expect(jsx).not.toContain('data-kind={"change"}');
+    expect(jsx).toContain('data-marker={"-"}');
+    expect(jsx).toContain('data-marker={"+"}');
+    expect(jsx).toContain('{"x"}');
+    expect(jsx).toContain('{"y"}');
+  });
+
+  it("diffにlangがあればハイライト用にdata-langを出す", () => {
+    const jsx = renderNode({ id: "d3", type: "diff", lang: "ts", before: "a", after: "b" });
+
+    expect(jsx).toContain('data-lang={"ts"}');
+  });
+
+  // 行番号は属性に入れてCSSで描く。中身に入れるとコピーしたときに混ざる
+  it("diffの行番号を変更前と変更後で別々に数える", () => {
+    const jsx = renderNode({ id: "d2", type: "diff", before: "a\nb", after: "a\nx\nb" });
+
+    const rows = jsx.split("<tr ").slice(1);
+
+    expect(rows[0]).toContain('data-old={"1"}');
+    expect(rows[0]).toContain('data-new={"1"}');
+    // 追加行は変更前の番号を持たない
+    expect(rows[1]).toContain('data-kind={"add"}');
+    expect(rows[1]).toContain('data-old={""}');
+    expect(rows[1]).toContain('data-new={"2"}');
+    // 追加のぶん、以降の行は変更前と変更後で番号がずれる
+    expect(rows[2]).toContain('data-old={"2"}');
+    expect(rows[2]).toContain('data-new={"3"}');
   });
 
   it("svgノードをそのまま埋め込むfigureのJSXにする", () => {
