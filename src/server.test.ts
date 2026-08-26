@@ -62,6 +62,18 @@ describe("createServer", () => {
     }
   });
 
+  it("チャット欄の幅をCSS変数で制御し、ドラッグ用の仕切りを持つ", async () => {
+    const res = await fetch(baseUrl);
+    const body = await res.text();
+
+    expect(body).toContain("--panel-w");
+    expect(body).toContain('id="htllm-panel-resizer"');
+    expect(body).toContain("col-resize");
+    // 本文側の余白もパネル幅に追従しないと、広げたときに本文が隠れる
+    expect(body).toContain("padding-right: var(--panel-w)");
+    expect(body).toContain("width: var(--panel-w)");
+  });
+
   it("includes the React CDN script tag", async () => {
     const res = await fetch(baseUrl);
     const body = await res.text();

@@ -23,6 +23,7 @@ function renderPage(jsx: string): string {
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
     :root {
+      --panel-w: 320px;
       --bg: #f7f9fb;
       --surface: #ffffff;
       --surface-sunken: #eef2f6;
@@ -119,7 +120,7 @@ function renderPage(jsx: string): string {
       min-height: 100vh;
       background: var(--bg);
       color: var(--ink);
-      padding-right: 320px;
+      padding-right: var(--panel-w);
       font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
     }
 
@@ -604,7 +605,7 @@ function renderPage(jsx: string): string {
       position: fixed;
       top: 0;
       right: 0;
-      width: 320px;
+      width: var(--panel-w);
       height: 100vh;
       overflow: hidden;
       background: var(--surface-sunken);
@@ -614,6 +615,19 @@ function renderPage(jsx: string): string {
       color: var(--ink);
       display: flex;
       flex-direction: column;
+    }
+    #htllm-panel-resizer {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 6px;
+      height: 100%;
+      cursor: col-resize;
+      z-index: 1;
+    }
+    #htllm-panel-resizer:hover,
+    #htllm-panel-resizer[data-dragging="true"] {
+      background: var(--border-strong);
     }
     @media (max-width: 900px) {
       body {
@@ -794,6 +808,7 @@ function renderPage(jsx: string): string {
 <body>
 <div id="root"></div>
 <div id="htllm-comments-panel">
+  <div id="htllm-panel-resizer"></div>
   <div id="htllm-panel-header">
     <button type="button" id="htllm-panel-back" class="htllm-panel-btn" hidden>← 一覧</button>
     <button type="button" id="htllm-panel-delete" class="htllm-panel-btn" hidden>削除</button>
@@ -818,6 +833,40 @@ function renderPage(jsx: string): string {
   var themeToggle = document.getElementById("htllm-theme-toggle");
   var backBtn = document.getElementById("htllm-panel-back");
   var deleteBtn = document.getElementById("htllm-panel-delete");
+  var resizer = document.getElementById("htllm-panel-resizer");
+
+  var PANEL_WIDTH_KEY = "htllm-panel-width";
+
+  function setPanelWidth(width) {
+    // 本文にも最低限の幅を残す。狭い画面ではmaxがminを下回るのでmaxを優先する
+    var max = Math.max(260, Math.min(720, window.innerWidth - 320));
+    var clamped = Math.min(Math.max(width, 260), max);
+    document.documentElement.style.setProperty("--panel-w", clamped + "px");
+    return clamped;
+  }
+
+  var savedWidth = Number(localStorage.getItem(PANEL_WIDTH_KEY));
+  if (savedWidth) {
+    setPanelWidth(savedWidth);
+  }
+
+  resizer.addEventListener("pointerdown", function (e) {
+    e.preventDefault();
+    resizer.setPointerCapture(e.pointerId);
+    resizer.setAttribute("data-dragging", "true");
+
+    function onMove(ev) {
+      setPanelWidth(window.innerWidth - ev.clientX);
+    }
+    function onUp(ev) {
+      resizer.removeEventListener("pointermove", onMove);
+      resizer.removeEventListener("pointerup", onUp);
+      resizer.removeAttribute("data-dragging");
+      localStorage.setItem(PANEL_WIDTH_KEY, String(setPanelWidth(window.innerWidth - ev.clientX)));
+    }
+    resizer.addEventListener("pointermove", onMove);
+    resizer.addEventListener("pointerup", onUp);
+  });
 
   function applyTheme(theme) {
     document.documentElement.setAttribute("data-theme", theme);
