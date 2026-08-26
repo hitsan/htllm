@@ -219,8 +219,9 @@ describe("respond", () => {
     await respond(doc, "質問文");
 
     const [prompt] = runTurnMock.mock.calls[0];
-    expect(prompt).toContain("200字");
-    expect(prompt).toContain("3文");
+    expect(prompt).toContain("120字");
+    expect(prompt).toContain("2文");
+    expect(prompt).toContain("40字");
     expect(prompt).toContain("1文目");
   });
 
