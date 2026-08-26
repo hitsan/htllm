@@ -21,9 +21,11 @@ function renderPage(jsx: string): string {
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
   <style>
     :root {
       --panel-w: 320px;
+      --block-pad-x: 1.2rem;
       --bg: #f7f9fb;
       --surface: #ffffff;
       --surface-sunken: #eef2f6;
@@ -44,6 +46,13 @@ function renderPage(jsx: string): string {
       --highlight-ink: #3f3600;
       --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
       --shadow: rgba(24, 36, 48, 0.12);
+      --code-keyword: #9333ea;
+      --code-string: #15803d;
+      --code-number: #b45309;
+      --code-title: #2563eb;
+      --code-type: #0e7490;
+      --diff-add: #dcfce7;
+      --diff-del: #fee2e2;
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -66,6 +75,13 @@ function renderPage(jsx: string): string {
         --highlight-bg: #8a6d1a;
         --highlight-ink: #fff8e1;
         --shadow: rgba(0, 0, 0, 0.4);
+        --code-keyword: #c792ea;
+        --code-string: #7ec699;
+        --code-number: #f0a35e;
+        --code-title: #82aaff;
+        --code-type: #5ec8d8;
+        --diff-add: #14321f;
+        --diff-del: #3a1c1c;
       }
     }
     :root[data-theme="light"] {
@@ -88,6 +104,13 @@ function renderPage(jsx: string): string {
       --highlight-bg: #fff176;
       --highlight-ink: #3f3600;
       --shadow: rgba(24, 36, 48, 0.12);
+      --code-keyword: #9333ea;
+      --code-string: #15803d;
+      --code-number: #b45309;
+      --code-title: #2563eb;
+      --code-type: #0e7490;
+      --diff-add: #dcfce7;
+      --diff-del: #fee2e2;
     }
     :root[data-theme="dark"] {
       --bg: #0f151b;
@@ -109,6 +132,13 @@ function renderPage(jsx: string): string {
       --highlight-bg: #8a6d1a;
       --highlight-ink: #fff8e1;
       --shadow: rgba(0, 0, 0, 0.4);
+      --code-keyword: #c792ea;
+      --code-string: #7ec699;
+      --code-number: #f0a35e;
+      --code-title: #82aaff;
+      --code-type: #5ec8d8;
+      --diff-add: #14321f;
+      --diff-del: #3a1c1c;
     }
 
     * { box-sizing: border-box; }
@@ -172,7 +202,7 @@ function renderPage(jsx: string): string {
     }
     .htllm-callout {
       margin: 0 0 1.4rem;
-      padding: 0.9rem 1.1rem;
+      padding: 0.9rem var(--block-pad-x);
       background: var(--accent-soft);
       border-left: 3px solid var(--accent);
       border-radius: 6px;
@@ -205,7 +235,7 @@ function renderPage(jsx: string): string {
     }
     [data-htllm-root] pre {
       margin: 0 0 1.4rem;
-      padding: 1rem 1.2rem;
+      padding: 1rem var(--block-pad-x);
       background: var(--surface-sunken);
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -219,7 +249,7 @@ function renderPage(jsx: string): string {
     }
     .htllm-card {
       margin: 0 0 1.4rem;
-      padding: 1.1rem 1.3rem;
+      padding: 1.1rem var(--block-pad-x);
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 10px;
@@ -297,7 +327,7 @@ function renderPage(jsx: string): string {
     .htllm-compare-card {
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 1rem 1.2rem;
+      padding: 1rem var(--block-pad-x);
       background: var(--surface);
     }
     .htllm-compare-card[data-tone="bad"] {
@@ -332,7 +362,7 @@ function renderPage(jsx: string): string {
       gap: 0.6rem;
       justify-content: center;
       margin: 0 0 1.4rem;
-      padding: 1.3rem;
+      padding: 1.3rem var(--block-pad-x);
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 10px;
@@ -404,7 +434,7 @@ function renderPage(jsx: string): string {
     .htllm-gallery-item {
       border: 1px solid var(--border);
       border-radius: 9px;
-      padding: 0.9rem 1rem;
+      padding: 0.9rem var(--block-pad-x);
       background: var(--surface);
     }
     .htllm-gallery-item h4 {
@@ -467,7 +497,7 @@ function renderPage(jsx: string): string {
       border: 1px solid var(--border);
       border-left: 3px solid var(--accent);
       border-radius: 10px;
-      padding: 1.4rem 1.6rem;
+      padding: 1.4rem var(--block-pad-x);
       margin: 0 0 1.4rem;
     }
     .htllm-recommendation h3 {
@@ -497,7 +527,7 @@ function renderPage(jsx: string): string {
       font-size: 0.92rem;
       background: var(--surface-sunken);
       border-radius: 8px;
-      padding: 0.8rem 1rem;
+      padding: 0.8rem var(--block-pad-x);
     }
     .htllm-qa-label {
       font-family: var(--mono);
@@ -514,7 +544,7 @@ function renderPage(jsx: string): string {
       border: 1px solid var(--border);
       border-radius: 10px;
       background: var(--surface);
-      padding: 2.2rem 1.2rem 1.2rem;
+      padding: 2.2rem var(--block-pad-x) 1.2rem;
       margin: 0 0 1.4rem;
       font-size: 0.92rem;
     }
@@ -580,7 +610,7 @@ function renderPage(jsx: string): string {
 
     .htllm-svg {
       margin: 1.6rem 0;
-      padding: 1.2rem;
+      padding: 1.2rem var(--block-pad-x);
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 12px;
@@ -616,6 +646,106 @@ function renderPage(jsx: string): string {
       display: flex;
       flex-direction: column;
     }
+    [data-htllm-root] .htllm-code,
+    [data-htllm-root] .htllm-diff {
+      margin: 0 0 1.4rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--surface-sunken);
+    }
+    [data-htllm-root] .htllm-code-name {
+      padding: 0.5rem var(--block-pad-x);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    [data-htllm-root] .htllm-code pre {
+      margin: 0;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+    }
+
+    [data-htllm-root] .htllm-diff-scroll {
+      overflow-x: auto;
+    }
+    [data-htllm-root] table.htllm-diff-body {
+      display: table;
+      width: 100%;
+      margin: 0;
+      overflow: visible;
+      border-collapse: collapse;
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      line-height: 1.65;
+    }
+    /* 行番号と+/-は属性に入れてCSSで描く。中身に入れるとコピーしたときに混ざる */
+    [data-htllm-root] td.htllm-diff-num {
+      width: 1%;
+      padding: 0.1rem 0.5rem;
+      border-bottom: none;
+      text-align: right;
+      color: var(--muted);
+      user-select: none;
+    }
+    [data-htllm-root] td.htllm-diff-num[data-old]::before {
+      content: attr(data-old);
+    }
+    [data-htllm-root] td.htllm-diff-num[data-new]::before {
+      content: attr(data-new);
+    }
+    [data-htllm-root] td.htllm-diff-cell {
+      padding: 0.1rem var(--block-pad-x) 0.1rem 0.5rem;
+      border-bottom: none;
+      white-space: pre;
+      color: var(--ink);
+    }
+    [data-htllm-root] td.htllm-diff-cell::before {
+      content: attr(data-marker) " ";
+      color: var(--muted);
+      user-select: none;
+    }
+    [data-htllm-root] .htllm-diff-row[data-kind="del"] {
+      background: var(--diff-del);
+    }
+    [data-htllm-root] .htllm-diff-row[data-kind="add"] {
+      background: var(--diff-add);
+    }
+
+    /* highlight.jsのテーマCSSは読まず、data-theme切替に追従するよう自前で当てる */
+    [data-htllm-root] .hljs-comment,
+    [data-htllm-root] .hljs-quote {
+      color: var(--muted);
+      font-style: italic;
+    }
+    [data-htllm-root] .hljs-keyword,
+    [data-htllm-root] .hljs-selector-tag,
+    [data-htllm-root] .hljs-literal {
+      color: var(--code-keyword);
+    }
+    [data-htllm-root] .hljs-string,
+    [data-htllm-root] .hljs-attr,
+    [data-htllm-root] .hljs-regexp {
+      color: var(--code-string);
+    }
+    [data-htllm-root] .hljs-number,
+    [data-htllm-root] .hljs-built_in,
+    [data-htllm-root] .hljs-symbol {
+      color: var(--code-number);
+    }
+    [data-htllm-root] .hljs-title,
+    [data-htllm-root] .hljs-name,
+    [data-htllm-root] .hljs-function .hljs-title {
+      color: var(--code-title);
+    }
+    [data-htllm-root] .hljs-type,
+    [data-htllm-root] .hljs-class .hljs-title {
+      color: var(--code-type);
+    }
+
     #htllm-panel-resizer {
       position: absolute;
       left: 0;
@@ -890,10 +1020,40 @@ function renderPage(jsx: string): string {
   var threadsCache = {};
   var activeThreadId = null;
 
+  // Reactが描き終わってからDOMに対して当てる。langがなければ自動判定に任せる
+  function highlightCode() {
+    if (typeof hljs === "undefined") return;
+    var blocks = document.querySelectorAll("[data-htllm-root] .htllm-code pre code");
+    for (var i = 0; i < blocks.length; i++) {
+      if (!blocks[i].dataset.highlighted) {
+        hljs.highlightElement(blocks[i]);
+      }
+    }
+    // diffは行ごとに掛ける。行をまたぐコメントや文字列は色が付かないだけで壊れない
+    var diffs = document.querySelectorAll("[data-htllm-root] .htllm-diff[data-lang]");
+    for (var d = 0; d < diffs.length; d++) {
+      var lang = diffs[d].getAttribute("data-lang");
+      if (!hljs.getLanguage(lang)) continue;
+      var cells = diffs[d].querySelectorAll(".htllm-diff-cell");
+      for (var c = 0; c < cells.length; c++) {
+        if (cells[c].dataset.highlighted) continue;
+        cells[c].innerHTML = hljs.highlight(cells[c].textContent, {
+          language: lang,
+          ignoreIllegals: true,
+        }).value;
+        cells[c].dataset.highlighted = "yes";
+      }
+    }
+  }
+
   function rerender(jsx) {
     var code = Babel.transform(jsx, { presets: [["react", { runtime: "classic" }]] }).code;
     (0, eval)(code);
+    highlightCode();
   }
+
+  // 初回描画はページ末尾のbabelスクリプトが行うので、それが済んでから当てる
+  window.addEventListener("load", highlightCode);
 
   function threadTitle(thread) {
     for (var i = 0; i < thread.messages.length; i++) {

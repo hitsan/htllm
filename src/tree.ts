@@ -12,7 +12,8 @@ export type Node =
   | { id: string; type: "steps"; items: string[] }
   | { id: string; type: "callout"; text: string }
   | { id: string; type: "table"; headers: string[]; rows: string[][] }
-  | { id: string; type: "codeblock"; code: string }
+  | { id: string; type: "codeblock"; code: string; lang?: string; filename?: string }
+  | { id: string; type: "diff"; before: string; after: string; lang?: string; filename?: string }
   | { id: string; type: "card"; title: string; text: string }
   | { id: string; type: "diagram"; nodes: string[] }
   | { id: string; type: "hero"; eyebrow: string; title: string; lede: string }
@@ -24,6 +25,61 @@ export type Node =
   | { id: string; type: "qa"; items: QaItem[] }
   | { id: string; type: "mockup"; lines: MockupLine[] }
   | { id: string; type: "svg"; svg: string; caption: string };
+
+export type DiffRow = {
+  left: string | null;
+  right: string | null;
+  kind: "same" | "add" | "del" | "change";
+};
+
+// 行の対応づけはLLMに書かせず、こちらで計算する。コード片が対象なのでO(n*m)で足りる
+export function diffLines(before: string, after: string): DiffRow[] {
+  const a = before.split("\n");
+  const b = after.split("\n");
+  const lcs: number[][] = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+  for (let i = a.length - 1; i >= 0; i--) {
+    for (let j = b.length - 1; j >= 0; j--) {
+      lcs[i][j] = a[i] === b[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+    }
+  }
+
+  const rows: DiffRow[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) {
+      rows.push({ left: a[i], right: b[j], kind: "same" });
+      i++;
+      j++;
+    } else if (lcs[i + 1][j] >= lcs[i][j + 1]) {
+      rows.push({ left: a[i], right: null, kind: "del" });
+      i++;
+    } else {
+      rows.push({ left: null, right: b[j], kind: "add" });
+      j++;
+    }
+  }
+  while (i < a.length) rows.push({ left: a[i++], right: null, kind: "del" });
+  while (j < b.length) rows.push({ left: null, right: b[j++], kind: "add" });
+
+  return pairChanges(rows);
+}
+
+// 隣り合う削除と追加は、左右に並べたほうが書き換えとして読める
+function pairChanges(rows: DiffRow[]): DiffRow[] {
+  const paired: DiffRow[] = [];
+  for (let k = 0; k < rows.length; k++) {
+    const del = rows[k];
+    const add = rows[k + 1];
+    if (del.kind === "del" && add?.kind === "add") {
+      paired.push({ left: del.left, right: add.right, kind: "change" });
+      k++;
+    } else {
+      paired.push(del);
+    }
+  }
+  return paired;
+}
 
 function lit(text: string): string {
   return `{${JSON.stringify(text)}}`;
@@ -59,8 +115,42 @@ export function renderNode(node: Node): string {
         .join("");
       return `<table data-node-id="${node.id}"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
     }
-    case "codeblock":
-      return `<pre data-node-id="${node.id}"><code>${lit(node.code)}</code></pre>`;
+    case "codeblock": {
+      const name = node.filename !== undefined ? `<div className="htllm-code-name">${lit(node.filename)}</div>` : "";
+      const cls = node.lang !== undefined ? ` className="language-${node.lang}"` : "";
+      return `<div data-node-id="${node.id}" className="htllm-code">${name}<pre><code${cls}>${lit(node.code)}</code></pre></div>`;
+    }
+    case "diff": {
+      const name = node.filename !== undefined ? `<div className="htllm-code-name">${lit(node.filename)}</div>` : "";
+      let oldNo = 0;
+      let newNo = 0;
+      const rows = diffLines(node.before, node.after)
+        .flatMap((r) =>
+          // unifiedでは書き換えを削除行と追加行に分けて縦に並べる
+          r.kind === "change"
+            ? [
+                { kind: "del", text: r.left ?? "" },
+                { kind: "add", text: r.right ?? "" },
+              ]
+            : [{ kind: r.kind, text: r.left ?? r.right ?? "" }],
+        )
+        .map(({ kind, text }) => {
+          const old = kind === "add" ? "" : String(++oldNo);
+          const next = kind === "del" ? "" : String(++newNo);
+          const marker = kind === "del" ? "-" : kind === "add" ? "+" : " ";
+          return (
+            `<tr className="htllm-diff-row" data-kind=${lit(kind)}>` +
+            `<td className="htllm-diff-num" data-old=${lit(old)} />` +
+            `<td className="htllm-diff-num" data-new=${lit(next)} />` +
+            `<td className="htllm-diff-cell" data-marker=${lit(marker)}>${lit(text)}</td>` +
+            `</tr>`
+          );
+        })
+        .join("");
+      const lang = node.lang !== undefined ? ` data-lang=${lit(node.lang)}` : "";
+      // 列幅と行の背景を揃えるのはtableが最も素直。GitHubもdiff2htmlも同じ
+      return `<div data-node-id="${node.id}" className="htllm-diff"${lang}>${name}<div className="htllm-diff-scroll"><table className="htllm-diff-body"><tbody>${rows}</tbody></table></div></div>`;
+    }
     case "card":
       return `<div data-node-id="${node.id}" className="htllm-card"><h3>${lit(node.title)}</h3><p>${lit(node.text)}</p></div>`;
     case "diagram": {
@@ -131,6 +221,8 @@ export function nodeToText(node: Node): string {
       return [node.headers.join("\t"), ...node.rows.map((row) => row.join("\t"))].join("\n");
     case "codeblock":
       return node.code;
+    case "diff":
+      return `${node.filename ?? ""}\n${node.before}\n${node.after}`;
     case "card":
       return `${node.title}\n${node.text}`;
     case "diagram":

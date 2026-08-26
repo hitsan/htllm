@@ -83,6 +83,22 @@ describe("buildTree", () => {
     expect(prompt).toContain("qa");
     expect(prompt).toContain("mockup");
     expect(prompt).toContain("svg");
+    expect(prompt).toContain("diff");
+  });
+
+  it("コードに触れる内容では文章で説明せずcodeblockかdiffを使わせる", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "[]",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    await buildTree("入力");
+
+    const [prompt] = runTurnMock.mock.calls[0];
+    expect(prompt).toContain("コードや設定に触れる内容");
+    expect(prompt).toContain("before");
+    expect(prompt).toContain("after");
   });
 
   it("text以外のフィールドを持つ部品(steps)もそのままNode化する", async () => {

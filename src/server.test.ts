@@ -74,6 +74,17 @@ describe("createServer", () => {
     expect(body).toContain("width: var(--panel-w)");
   });
 
+  // テーマCSSは読まない。data-theme切替に追従させるため色は自前のCSS変数で当てる
+  it("highlight.jsのJSだけを読み、ハイライトの色は自前で定義する", async () => {
+    const res = await fetch(baseUrl);
+    const body = await res.text();
+
+    expect(body).toContain("highlight.min.js");
+    expect(body).not.toContain("highlight.js/styles");
+    expect(body).toContain(".hljs-keyword");
+    expect(body).toContain("highlightElement");
+  });
+
   it("includes the React CDN script tag", async () => {
     const res = await fetch(baseUrl);
     const body = await res.text();
