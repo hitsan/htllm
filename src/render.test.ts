@@ -225,6 +225,20 @@ describe("respond", () => {
     expect(prompt).toContain("1文目");
   });
 
+  it("1文ごとの改行と、1箇所だけの強調をプロンプトで指示する", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "ANSWER a2\n回答です",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    await respond(doc, "質問文");
+
+    const [prompt] = runTurnMock.mock.calls[0];
+    expect(prompt).toContain("改行");
+    expect(prompt).toContain("**");
+  });
+
   it("ANSWER応答から対象idと回答を取り出す", async () => {
     runTurnMock.mockResolvedValue({
       result: "ANSWER a2\n回答です",

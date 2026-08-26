@@ -904,10 +904,23 @@ function renderPage(jsx: string): string {
 
     var messagesEl = document.createElement("div");
     messagesEl.className = "htllm-thread-messages";
+    // **強調** だけを太字にする。innerHTMLを使わずtextContentで組み立てる
+    function renderEmphasis(el, text) {
+      text.split(/(\*\*[^*\n]+\*\*)/).forEach(function (part) {
+        if (!part) return;
+        if (/^\*\*[^*\n]+\*\*$/.test(part)) {
+          var strong = document.createElement("strong");
+          strong.textContent = part.slice(2, -2);
+          el.appendChild(strong);
+        } else {
+          el.appendChild(document.createTextNode(part));
+        }
+      });
+    }
     thread.messages.forEach(function (msg) {
       var msgEl = document.createElement("div");
       msgEl.className = "htllm-thread-msg htllm-thread-msg-" + msg.role;
-      msgEl.textContent = msg.text;
+      renderEmphasis(msgEl, msg.text);
       if (msg.pending) {
         msgEl.setAttribute("data-pending", "true");
       }
