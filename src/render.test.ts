@@ -208,6 +208,22 @@ describe("respond", () => {
     expect(prompt).toContain("aria-label");
   });
 
+  // 回答は幅320pxのチャット欄に出る。要点に絞れという指示だけでは長くなるので字数で切る
+  it("回答の長さの上限をプロンプトに含める", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "ANSWER a2\n回答です",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    await respond(doc, "質問文");
+
+    const [prompt] = runTurnMock.mock.calls[0];
+    expect(prompt).toContain("200字");
+    expect(prompt).toContain("3文");
+    expect(prompt).toContain("1文目");
+  });
+
   it("ANSWER応答から対象idと回答を取り出す", async () => {
     runTurnMock.mockResolvedValue({
       result: "ANSWER a2\n回答です",
