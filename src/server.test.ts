@@ -49,6 +49,19 @@ describe("createServer", () => {
     expect(body).toContain(jsx);
   });
 
+  // クライアントJSはテンプレートリテラルの中にあるので、正規表現の \\* のような
+  // エスケープを1段間違えると配信時に壊れ、パネル全体が動かなくなる
+  it("配信するクライアントJSが構文エラーなくパースできる", async () => {
+    const res = await fetch(baseUrl);
+    const body = await res.text();
+    const scripts = [...body.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+
+    expect(scripts.length).toBeGreaterThan(0);
+    for (const code of scripts) {
+      expect(() => new Function(code)).not.toThrow();
+    }
+  });
+
   it("includes the React CDN script tag", async () => {
     const res = await fetch(baseUrl);
     const body = await res.text();

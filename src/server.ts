@@ -906,9 +906,9 @@ function renderPage(jsx: string): string {
     messagesEl.className = "htllm-thread-messages";
     // **強調** だけを太字にする。innerHTMLを使わずtextContentで組み立てる
     function renderEmphasis(el, text) {
-      text.split(/(\*\*[^*\n]+\*\*)/).forEach(function (part) {
+      text.split(/(\\*\\*[^*\\n]+\\*\\*)/).forEach(function (part) {
         if (!part) return;
-        if (/^\*\*[^*\n]+\*\*$/.test(part)) {
+        if (/^\\*\\*[^*\\n]+\\*\\*$/.test(part)) {
           var strong = document.createElement("strong");
           strong.textContent = part.slice(2, -2);
           el.appendChild(strong);
