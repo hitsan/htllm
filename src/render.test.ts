@@ -363,6 +363,20 @@ describe("respond", () => {
     ]);
   });
 
+  // 1行目だけ返されると本文が空になり、チャットに空のメッセージが残る
+  it("ANSWERの本文が空でも、空のメッセージを返さない", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "ANSWER a2",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const result = await respond(doc, "質問文");
+
+    expect(result.kind).toBe("answer");
+    expect(result.kind === "answer" && result.answer).not.toBe("");
+  });
+
   it("存在しないidを返してきたら、落ちずにその旨をanswerとして返す", async () => {
     runTurnMock.mockResolvedValue({
       result: 'EDIT\n[{"id":"zzz","nodes":[{"type":"prose","text":"新しい本文"}]}]',
