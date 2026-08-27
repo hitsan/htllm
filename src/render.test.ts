@@ -131,6 +131,37 @@ describe("buildTree", () => {
     expect(prompt).toContain("読み取れない");
   });
 
+  it("ページ全体の組み立て方をプロンプトに含める", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "[]",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    await buildTree("入力");
+
+    const [prompt] = runTurnMock.mock.calls[0];
+    expect(prompt).toContain("結論");
+    expect(prompt).toContain("全体");
+    expect(prompt).toContain("粒度");
+    expect(prompt).toContain("並べ替え");
+    // 短い文書で無理に型を埋めさせない
+    expect(prompt).toContain("省いて");
+  });
+
+  it("heroを導入ではなく結論として説明する", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "[]",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    await buildTree("入力");
+
+    const [prompt] = runTurnMock.mock.calls[0];
+    expect(prompt).toContain("hero: 文書の冒頭に置く結論");
+  });
+
   it("SVGの書き方の決まりをプロンプトに含める", async () => {
     runTurnMock.mockResolvedValue({
       result: "[]",
