@@ -82,7 +82,9 @@ describe("createServer", () => {
     expect(body).toContain("highlight.min.js");
     expect(body).not.toContain("highlight.js/styles");
     expect(body).toContain(".hljs-keyword");
-    expect(body).toContain("highlightElement");
+    expect(body).toContain("hljs.highlight(");
+    // 処理済みの印を残すとReactの再描画後に掛け直せなくなる
+    expect(body).not.toContain("dataset.highlighted");
   });
 
   it("includes the React CDN script tag", async () => {

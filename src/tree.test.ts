@@ -111,7 +111,7 @@ describe("renderNode", () => {
     const jsx = renderNode({ id: "cb1", type: "codeblock", code: "const x = 1;" });
 
     expect(jsx).toBe(
-      '<div data-node-id="cb1" className="htllm-code"><pre><code>{"const x = 1;"}</code></pre></div>',
+      '<div data-node-id="cb1" className="htllm-code"><pre><code dangerouslySetInnerHTML={{__html: "const x = 1;"}} /></pre></div>',
     );
   });
 
@@ -299,7 +299,7 @@ describe("renderNode", () => {
 
     expect(jsx).toContain('data-node-id="cb1"');
     expect(jsx).toContain('className="language-ts"');
-    expect(jsx).toContain('{"const a = 1;"}');
+    expect(jsx).toContain('dangerouslySetInnerHTML={{__html: "const a = 1;"}}');
   });
 
   it("codeblockにfilenameがあれば見出しとして出す", () => {
@@ -333,8 +333,8 @@ describe("renderNode", () => {
     expect(jsx).not.toContain('data-kind={"change"}');
     expect(jsx).toContain('data-marker={"-"}');
     expect(jsx).toContain('data-marker={"+"}');
-    expect(jsx).toContain('{"x"}');
-    expect(jsx).toContain('{"y"}');
+    expect(jsx).toContain('data-marker={"-"} dangerouslySetInnerHTML={{__html: "x"}}');
+    expect(jsx).toContain('data-marker={"+"} dangerouslySetInnerHTML={{__html: "y"}}');
   });
 
   it("diffにlangがあればハイライト用にdata-langを出す", () => {

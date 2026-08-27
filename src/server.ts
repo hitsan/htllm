@@ -1023,11 +1023,17 @@ function renderPage(jsx: string): string {
   // Reactが描き終わってからDOMに対して当てる。langがなければ自動判定に任せる
   function highlightCode() {
     if (typeof hljs === "undefined") return;
+    // 処理済みの印は付けない。Reactは自分が付けていない属性を消さないので、
+    // 印だけが残って中身は素に戻り、二度と掛け直されなくなる
     var blocks = document.querySelectorAll("[data-htllm-root] .htllm-code pre code");
     for (var i = 0; i < blocks.length; i++) {
-      if (!blocks[i].dataset.highlighted) {
-        hljs.highlightElement(blocks[i]);
-      }
+      var match = /language-(\S+)/.exec(blocks[i].className);
+      var blockLang = match ? match[1] : null;
+      var code = blocks[i].textContent;
+      blocks[i].innerHTML =
+        blockLang && hljs.getLanguage(blockLang)
+          ? hljs.highlight(code, { language: blockLang, ignoreIllegals: true }).value
+          : hljs.highlightAuto(code).value;
     }
     // diffは行ごとに掛ける。行をまたぐコメントや文字列は色が付かないだけで壊れない
     var diffs = document.querySelectorAll("[data-htllm-root] .htllm-diff[data-lang]");
@@ -1036,12 +1042,10 @@ function renderPage(jsx: string): string {
       if (!hljs.getLanguage(lang)) continue;
       var cells = diffs[d].querySelectorAll(".htllm-diff-cell");
       for (var c = 0; c < cells.length; c++) {
-        if (cells[c].dataset.highlighted) continue;
         cells[c].innerHTML = hljs.highlight(cells[c].textContent, {
           language: lang,
           ignoreIllegals: true,
         }).value;
-        cells[c].dataset.highlighted = "yes";
       }
     }
   }

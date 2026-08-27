@@ -85,6 +85,13 @@ function lit(text: string): string {
   return `{${JSON.stringify(text)}}`;
 }
 
+// コードはハイライトのためにinnerHTMLとしてReactに持たせる。子要素として渡すと
+// Reactが管理する実DOMをhljsが直接書き換えることになり、再描画と食い違う
+function html(text: string): string {
+  const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return `dangerouslySetInnerHTML={{__html: ${JSON.stringify(escaped)}}}`;
+}
+
 // SVGだけは中身を組み立てずLLMの書いたマークアップをそのまま埋める。JSXとして
 // 解釈させるとBabelのトランスパイルが落ちてページ全体が死ぬので、innerHTMLで渡す。
 // ponytail: 実行可能な要素だけ落とす最小の除去。ローカル配信前提で完全なサニタイザは入れない
@@ -118,7 +125,7 @@ export function renderNode(node: Node): string {
     case "codeblock": {
       const name = node.filename !== undefined ? `<div className="htllm-code-name">${lit(node.filename)}</div>` : "";
       const cls = node.lang !== undefined ? ` className="language-${node.lang}"` : "";
-      return `<div data-node-id="${node.id}" className="htllm-code">${name}<pre><code${cls}>${lit(node.code)}</code></pre></div>`;
+      return `<div data-node-id="${node.id}" className="htllm-code">${name}<pre><code${cls} ${html(node.code)} /></pre></div>`;
     }
     case "diff": {
       const name = node.filename !== undefined ? `<div className="htllm-code-name">${lit(node.filename)}</div>` : "";
@@ -142,7 +149,7 @@ export function renderNode(node: Node): string {
             `<tr className="htllm-diff-row" data-kind=${lit(kind)}>` +
             `<td className="htllm-diff-num" data-old=${lit(old)} />` +
             `<td className="htllm-diff-num" data-new=${lit(next)} />` +
-            `<td className="htllm-diff-cell" data-marker=${lit(marker)}>${lit(text)}</td>` +
+            `<td className="htllm-diff-cell" data-marker=${lit(marker)} ${html(text)} />` +
             `</tr>`
           );
         })
