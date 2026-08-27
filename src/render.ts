@@ -154,7 +154,7 @@ ${message}`;
     ...(resumeSessionId ? { resumeSessionId } : {}),
     allowedTools: READ_ONLY_TOOLS,
   });
-  const { kind, nodeId, body } = splitHeaderAndBody(result);
+  const { kind, nodeId, body } = splitHeaderAndBody(result, new Set(nodes.map((n) => n.id)));
 
   if (kind === "EDIT") {
     const edits = parseEdits(body, nodes);
@@ -183,16 +183,33 @@ function parseEdits(body: string, nodes: Node[]): Edit[] | null {
   }));
 }
 
-function splitHeaderAndBody(text: string): { kind: string; nodeId: string; body: string } {
-  const trimmed = text.trim();
-  const newlineIndex = trimmed.indexOf("\n");
-  const header = newlineIndex === -1 ? trimmed : trimmed.slice(0, newlineIndex).trim();
-  const body = newlineIndex === -1 ? "" : trimmed.slice(newlineIndex + 1).trim();
+// 1行目に "ANSWER <id>" だけを書かせているが、そのとおりに返ってこないことが多い。
+// 前置きを挟む、idの後ろに本文を続ける、見出しごと省く、のいずれも起きる。
+// 行位置に頼らずANSWER/EDITの行を探し、見つからなければ全体を回答として扱う
+function splitHeaderAndBody(text: string, knownIds: Set<string>): { kind: string; nodeId: string; body: string } {
+  const lines = text.trim().split("\n");
+  const headerIndex = lines.findIndex((line) => /^(ANSWER|EDIT)\b/.test(line.trim()));
+  if (headerIndex === -1) {
+    return { kind: "ANSWER", nodeId: "", body: text.trim() };
+  }
+
+  const header = lines[headerIndex].trim();
+  const rest = lines
+    .slice(headerIndex + 1)
+    .join("\n")
+    .trim();
   const spaceIndex = header.indexOf(" ");
   if (spaceIndex === -1) {
-    return { kind: header, nodeId: "", body };
+    return { kind: header, nodeId: "", body: rest };
   }
-  return { kind: header.slice(0, spaceIndex), nodeId: header.slice(spaceIndex + 1).trim(), body };
+
+  const afterKind = header.slice(spaceIndex + 1).trim();
+  const firstToken = afterKind.split(/\s+/)[0] ?? "";
+  const nodeId = knownIds.has(firstToken) ? firstToken : "";
+  const trailing = afterKind.slice(nodeId.length).trim();
+  const body = [trailing, rest].filter((s) => s !== "").join("\n");
+
+  return { kind: header.slice(0, spaceIndex), nodeId, body };
 }
 
 function extractFencedContent(text: string): string | null {
