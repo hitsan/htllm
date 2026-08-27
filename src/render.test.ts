@@ -363,6 +363,92 @@ describe("respond", () => {
     ]);
   });
 
+  // 1行目に前置きを書いてくることがある。ANSWER/EDITの行を探して読み取る
+  it("ANSWERの前に前置きがあっても、そこから読み取る", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "どの部品かを考えるとEDITではなくANSWERで答える。\nANSWER a2\n本文です。",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const result = await respond(doc, "質問文");
+
+    expect(result).toMatchObject({ kind: "answer", nodeId: "a2", answer: "本文です。" });
+  });
+
+  it("EDITの前に前置きがあっても、そこから読み取る", async () => {
+    runTurnMock.mockResolvedValue({
+      result: '書き換えが必要だと判断した。\nEDIT\n[{"id":"a2","nodes":[{"type":"prose","text":"新しい本文"}]}]',
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const result = await respond(doc, "指示文");
+
+    expect(result.kind).toBe("edit");
+  });
+
+  it("ANSWERもEDITも書かれていなければ、全体を回答として扱う", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "見出しの下に置かれています。",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const result = await respond(doc, "質問文");
+
+    expect(result).toMatchObject({ kind: "answer", answer: "見出しの下に置かれています。" });
+  });
+
+  // idと本文が同じ行に来ると、本文までidとして吸われて回答が消えていた
+  it("ANSWERのidと本文が同じ行にあっても、本文を取り出す", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "ANSWER a2 印を付ける前は素のテキストです。",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const result = await respond(doc, "質問文");
+
+    expect(result).toMatchObject({
+      kind: "answer",
+      nodeId: "a2",
+      answer: "印を付ける前は素のテキストです。",
+    });
+  });
+
+  it("ANSWERにidがなく本文だけでも、本文を取り出す", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "ANSWER 対象が分からないときの回答です。",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const result = await respond(doc, "質問文");
+
+    expect(result).toMatchObject({
+      kind: "answer",
+      nodeId: null,
+      answer: "対象が分からないときの回答です。",
+    });
+  });
+
+  it("idの後ろに改行と本文が続く従来の形も変わらず扱える", async () => {
+    runTurnMock.mockResolvedValue({
+      result: "ANSWER a2\n1行目です。\n2行目です。",
+      sessionId: "session-1",
+      stopReason: "end_turn",
+    });
+
+    const result = await respond(doc, "質問文");
+
+    expect(result).toMatchObject({
+      kind: "answer",
+      nodeId: "a2",
+      answer: "1行目です。\n2行目です。",
+    });
+  });
+
   // 1行目だけ返されると本文が空になり、チャットに空のメッセージが残る
   it("ANSWERの本文が空でも、空のメッセージを返さない", async () => {
     runTurnMock.mockResolvedValue({
